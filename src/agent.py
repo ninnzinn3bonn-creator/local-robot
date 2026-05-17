@@ -214,17 +214,21 @@ class VisionAudioAgent:
 
     # ---- 単発テスト用 ----
 
-    async def one_turn(self, user_text: str) -> Turn:
+    async def one_turn(self, user_text: str, notify: bool = True) -> Turn:
         """テキストを直接入力して1ターン実行する（マイク不要）。"""
         loop = asyncio.get_event_loop()
 
-        frame = self.camera.get_latest_for_llm() if self.camera.is_running else None
+        frame = self._frame_for_user_text(user_text)
         timer = LatencyTimer()
+        self.conv_logger.log_user(user_text)
+        if notify and self.on_user_text:
+            self.on_user_text(user_text)
 
         # STT スキップ（テキスト直接入力）
         timer._results["stt"] = 0
 
         # LLM
+        self._set_state(AgentState.THINKING)
         timer.start("llm")
         messages = self.memory.to_messages(user_text)
         response = await loop.run_in_executor(
@@ -233,24 +237,31 @@ class VisionAudioAgent:
         timer.stop("llm")
 
         # TTS
+        self._set_state(AgentState.SPEAKING)
         timer.start("tts")
         try:
             wav = await loop.run_in_executor(
                 None, lambda: self.tts.synthesize(response)
             )
-            self.speaker.play(wav)
+            await loop.run_in_executor(None, lambda: self.speaker.play(wav))
         except Exception as e:
             logger.error(f"TTS エラー: {e}")
         timer.stop("tts")
 
         self.memory.add(user_text, response)
+        self.conv_logger.log_bot(response)
+        self._last_response_time = time.monotonic()
         lat = timer.summary()
-        return Turn(
+        turn = Turn(
             user_text=user_text,
             image=frame,
             assistant_text=response,
             latency_ms=lat,
         )
+        if notify and self.on_turn_complete:
+            self.on_turn_complete(turn)
+        self._set_state(AgentState.WAKE_WAIT)
+        return turn
 
     async def process_audio(self, audio: np.ndarray, bypass_wake: bool = False) -> Optional[Turn]:
         """音声1発話を処理する。Web UIでは bypass_wake=True でボタン起動に使う。"""
@@ -327,6 +338,11 @@ class VisionAudioAgent:
             self.mic.active = True
             self._set_state(AgentState.WAKE_WAIT)
             return None
+        if self._is_noise_transcript(stt_text):
+            logger.info(f"STT の定型幻覚を検知、無視: {stt_text!r}")
+            self.mic.active = True
+            self._set_state(AgentState.WAKE_WAIT)
+            return None
 
         console.print(f"[yellow]USER (raw): {stt_text}[/yellow]")
 
@@ -360,7 +376,7 @@ class VisionAudioAgent:
         console.print(f"[bold yellow]USER: {user_text}[/bold yellow]")
 
         # フレーム取得・ログ
-        frame = self.camera.get_latest_for_llm()
+        frame = self._frame_for_user_text(user_text)
         if frame is not None:
             h, w = frame.shape[:2]
             self.conv_logger.log_image(frame, width=w, height=h)
@@ -409,6 +425,7 @@ class VisionAudioAgent:
         )
 
         # マイク再開・フラッシュ（エコー除去）
+        await asyncio.sleep(0.4)
         self.mic.flush()
         self.mic.active = True
         self._set_state(AgentState.WAKE_WAIT)
@@ -452,6 +469,72 @@ class VisionAudioAgent:
                 sample_rate=16_000,
             )
         raise ValueError(f"Unsupported STT backend: {self.cfg.stt.backend}")
+
+    def _frame_for_user_text(self, user_text: str) -> Optional[np.ndarray]:
+        """会話では原則画像を渡さず、視覚参照があるときだけ最新フレームを添える。"""
+        if not self.camera.is_running:
+            return None
+        if not self._should_use_vision(user_text):
+            return None
+        return self.camera.get_latest_for_llm()
+
+    @staticmethod
+    def _should_use_vision(user_text: str) -> bool:
+        text = user_text.casefold()
+        visual_keywords = [
+            "見え",
+            "映",
+            "写",
+            "カメラ",
+            "画面",
+            "画像",
+            "写真",
+            "視界",
+            "周り",
+            "まわり",
+            "何がある",
+            "なにがある",
+            "読ん",
+            "文字",
+            "色",
+            "右",
+            "左",
+            "前",
+            "後ろ",
+        ]
+        visual_phrases = [
+            "これ何",
+            "これなに",
+            "これは何",
+            "これはなに",
+            "これ読",
+            "これ見",
+            "あれ何",
+            "あれなに",
+            "あれ見",
+            "そこ見",
+            "ここ見",
+            "どれ",
+        ]
+        return (
+            any(keyword in text for keyword in visual_keywords)
+            or any(phrase in text for phrase in visual_phrases)
+        )
+
+    @staticmethod
+    def _is_noise_transcript(text: str) -> bool:
+        import re
+
+        normalized = re.sub(r"[\s、。，．,.!！?？]+", "", text.strip())
+        noise_phrases = {
+            "ご視聴ありがとうございました",
+            "ご視聴ありがとうございます",
+            "ご清聴ありがとうございました",
+            "ご清聴ありがとうございます",
+            "ご覧いただきありがとうございます",
+            "ありがとうございました",
+        }
+        return normalized in noise_phrases
 
     def _create_vad(self):
         backend = self.cfg.vad.backend.lower()

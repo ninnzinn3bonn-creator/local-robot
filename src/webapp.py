@@ -15,6 +15,7 @@ import mimetypes
 import threading
 import time
 import traceback
+from concurrent.futures import TimeoutError
 from dataclasses import dataclass, field
 from http import HTTPStatus
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -82,6 +83,7 @@ class WebRuntime:
         self._manual_armed = False
         self._manual_expires_at = 0.0
         self._last_state = self.agent.state.name
+        self._turn_lock = asyncio.Lock()
 
     def start(self) -> None:
         self._add_message("system", "起動中です。モデルとデバイスを準備しています。")
@@ -109,6 +111,24 @@ class WebRuntime:
         with self._lock:
             self._messages.clear()
             self._add_message("system", "チャット表示を消去しました。")
+        return self.snapshot()
+
+    def submit_text(self, text: str) -> dict[str, Any]:
+        text = text.strip()
+        if not text:
+            return self.snapshot()
+        with self._lock:
+            self.agent.mic.active = False
+            self.agent.mic.flush()
+            self._manual_armed = False
+            self._manual_expires_at = 0.0
+            self._status_text = "テキスト入力を処理しています"
+            self._add_message("user", text)
+        future = asyncio.run_coroutine_threadsafe(self._submit_text_async(text), self._loop)
+        try:
+            future.result(timeout=0.05)
+        except TimeoutError:
+            pass
         return self.snapshot()
 
     def frame_jpeg(self) -> Optional[bytes]:
@@ -164,7 +184,8 @@ class WebRuntime:
                 if audio is None:
                     continue
                 bypass_wake = self._consume_manual()
-                await self.agent.process_audio(audio, bypass_wake=bypass_wake)
+                async with self._turn_lock:
+                    await self.agent.process_audio(audio, bypass_wake=bypass_wake)
         except Exception as exc:
             logger.exception("Web agent loop failed")
             with self._lock:
@@ -187,6 +208,19 @@ class WebRuntime:
             self._manual_expires_at = 0.0
             self._status_text = "ボタン起動の発話を処理しています"
             return True
+
+    async def _submit_text_async(self, text: str) -> None:
+        async with self._turn_lock:
+            self.agent.mic.active = False
+            self._manual_armed = False
+            self._manual_expires_at = 0.0
+            try:
+                turn = await self.agent.one_turn(text, notify=False)
+                self._add_message("assistant", turn.assistant_text, latency_ms=turn.latency_ms)
+            finally:
+                await asyncio.sleep(0.4)
+                self.agent.mic.flush()
+                self.agent.mic.active = True
 
     def _expire_manual(self) -> None:
         with self._lock:
@@ -273,6 +307,15 @@ class LocalRobotHandler(BaseHTTPRequestHandler):
         if path == "/api/clear":
             self._send_json(self.runtime.clear_messages())
             return
+        if path == "/api/text":
+            try:
+                payload = self._read_json()
+                text = str(payload.get("text", ""))
+            except Exception as exc:
+                self._send_text(f"Bad request: {exc}", HTTPStatus.BAD_REQUEST)
+                return
+            self._send_json(self.runtime.submit_text(text))
+            return
         self._send_text("Not found", HTTPStatus.NOT_FOUND)
 
     def log_message(self, fmt: str, *args: Any) -> None:
@@ -311,6 +354,14 @@ class LocalRobotHandler(BaseHTTPRequestHandler):
         self.send_header("Content-Length", str(len(data)))
         self.end_headers()
         self.wfile.write(data)
+
+    def _read_json(self) -> dict[str, Any]:
+        length = int(self.headers.get("Content-Length", "0"))
+        raw = self.rfile.read(length) if length > 0 else b"{}"
+        data = json.loads(raw.decode("utf-8"))
+        if not isinstance(data, dict):
+            raise ValueError("JSON object expected")
+        return data
 
     def _send_text(self, text: str, status: HTTPStatus = HTTPStatus.OK) -> None:
         data = text.encode("utf-8")

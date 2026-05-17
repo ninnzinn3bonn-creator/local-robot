@@ -9,6 +9,8 @@ const continuousStatus = document.getElementById("continuousStatus");
 const listenButton = document.getElementById("listenButton");
 const endButton = document.getElementById("endButton");
 const clearButton = document.getElementById("clearButton");
+const textForm = document.getElementById("textForm");
+const textInput = document.getElementById("textInput");
 const sessionText = document.getElementById("sessionText");
 const sessionTime = document.getElementById("sessionTime");
 const sessionFill = document.getElementById("sessionFill");
@@ -30,6 +32,14 @@ async function api(path, options = {}) {
 
 function post(path) {
   return api(path, { method: "POST" });
+}
+
+function postJson(path, payload) {
+  return api(path, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
 }
 
 function formatLatency(latency) {
@@ -123,6 +133,7 @@ function renderState(state) {
   listenButton.disabled = !state.ready || state.manualArmed || busy;
   endButton.disabled = !state.ready;
   clearButton.disabled = !state.ready;
+  textInput.disabled = !state.ready || busy;
 
   updateMeter(state);
   renderMessages(state.messages || []);
@@ -173,6 +184,18 @@ clearButton.addEventListener("click", async () => {
     renderState(await post("/api/clear"));
   } catch (error) {
     statusText.textContent = `消去に失敗: ${error.message}`;
+  }
+});
+
+textForm.addEventListener("submit", async (event) => {
+  event.preventDefault();
+  const text = textInput.value.trim();
+  if (!text) return;
+  textInput.value = "";
+  try {
+    renderState(await postJson("/api/text", { text }));
+  } catch (error) {
+    statusText.textContent = `送信に失敗: ${error.message}`;
   }
 });
 

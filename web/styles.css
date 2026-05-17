@@ -211,7 +211,7 @@ button.primary:hover {
 
 .chat-pane {
   display: grid;
-  grid-template-rows: auto auto minmax(0, 1fr);
+  grid-template-rows: auto auto auto minmax(0, 1fr);
   overflow: hidden;
 }
 
@@ -221,6 +221,31 @@ button.primary:hover {
   gap: 10px;
   padding: 14px;
   border-bottom: 1px solid var(--line);
+}
+
+.text-entry {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 10px;
+  padding: 12px 14px;
+  border-bottom: 1px solid var(--line);
+  background: #fbfcfd;
+}
+
+.text-entry input {
+  min-width: 0;
+  min-height: 42px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 0 12px;
+  color: var(--text);
+  background: var(--surface);
+  font: inherit;
+}
+
+.text-entry input:focus {
+  outline: 2px solid rgba(8, 127, 140, 0.18);
+  border-color: var(--accent);
 }
 
 .session-meter {
@@ -359,6 +384,10 @@ button.primary:hover {
   }
 
   .controls {
+    grid-template-columns: 1fr;
+  }
+
+  .text-entry {
     grid-template-columns: 1fr;
   }
 }
