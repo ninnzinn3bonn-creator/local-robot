@@ -14,9 +14,9 @@
 ## データフロー
 
 ```text
-Camera -> FrameBuffer -> VisionAudioAgent -> LLM router
+Camera -> FrameBuffer -> VisionAudioAgent -> Vision Grounder -> LLM router
 Mic -> VAD backend -> STT backend -> WakeWordDetector -> VisionAudioAgent
-LLM router -> Chat model or Vision model -> VoicevoxTTS -> Speaker
+LLM router -> Chat model / Vision observation model -> VoicevoxTTS -> Speaker
 VisionAudioAgent -> ConversationMemory
 VisionAudioAgent -> ConversationLogger
 VisionAudioAgent -> RobotPlanner -> ActionPlan
@@ -24,7 +24,7 @@ VisionAudioAgent -> RobotPlanner -> ActionPlan
 
 カメラは常に最新フレームだけを保持します。通常会話では画像をLLMへ渡さず、視覚参照がある発話だけ最新フレームを添えます。
 
-標準構成では、通常会話は `llm.chat_model_id`、視覚参照つきのターンは `llm.vision_model_id` に送ります。これにより、会話品質と画像認識の遅延を分離します。
+標準構成では、通常会話は `llm.chat_model_id` に送ります。視覚参照つきのターンでは、まず `llm.vision_model_id` が観察メモを作り、最終返答は `llm.chat_model_id` が観察メモを根拠に生成します。これにより、会話品質と画像認識の責務を分離します。
 
 ## 状態機械
 

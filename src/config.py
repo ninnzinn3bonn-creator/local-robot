@@ -24,6 +24,15 @@ class LLMConfig(BaseModel):
     dtype: str = "auto"
     max_new_tokens: int = 256
     context_window: int = 128_000
+    ground_vision: bool = True
+    vision_grounding_tokens: int = 180
+    vision_grounding_prompt: str = (
+        "この画像をロボットの観察メモとして解析してください。"
+        "見えている事実だけを書き、推測や想像は書かないでください。"
+        "人、物、文字、位置関係、移動や接触で注意すべき点を短い箇条書きにしてください。"
+        "見えないものは「見えない」または「不明」と書いてください。"
+        "毎回同じ定型文にせず、このフレーム固有の情報を優先してください。"
+    )
     system_prompt: str = (
         "あなたは「じろえもん」という日本語のローカルロボット相棒です。"
         "カメラ映像は状況把握の補助として使い、ユーザーが明示的に聞いていない限り、"

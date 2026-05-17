@@ -27,6 +27,12 @@ class OllamaMultimodalLLM:
         endpoint: str = "http://127.0.0.1:11434",
         max_new_tokens: int = 256,
         system_prompt: str = "あなたはカメラ映像を見ながら会話する日本語アシスタントです。",
+        ground_vision: bool = True,
+        vision_grounding_prompt: str = (
+            "この画像をロボットの観察メモとして解析してください。"
+            "見えている事実だけを書き、推測や想像は書かないでください。"
+        ),
+        vision_grounding_tokens: int = 180,
         timeout: float = 300.0,
     ) -> None:
         self._model_id = model_id
@@ -35,8 +41,12 @@ class OllamaMultimodalLLM:
         self._endpoint = endpoint.rstrip("/")
         self._max_new_tokens = max_new_tokens
         self._system_prompt = system_prompt
+        self._ground_vision = ground_vision
+        self._vision_grounding_prompt = vision_grounding_prompt
+        self._vision_grounding_tokens = vision_grounding_tokens
         self._timeout = timeout
         self._client: Optional[httpx.Client] = None
+        self._last_observation: Optional[str] = None
         self._loaded = False
 
     def load(self, device: str = "cuda:0") -> None:
@@ -72,16 +82,63 @@ class OllamaMultimodalLLM:
             raise RuntimeError("OllamaMultimodalLLM.load() を先に呼んでください")
 
         has_image = image is not None
+        if has_image and self._ground_vision:
+            return self._generate_with_grounded_vision(messages, image)
+
+        self._last_observation = None
         ollama_messages = self._to_ollama_messages(messages, has_image=has_image)
         if image is not None:
             self._attach_image_to_last_user(ollama_messages, image)
 
         model = self._select_model(has_image)
+        return self._post_chat(model, ollama_messages, self._max_new_tokens)
+
+    def _generate_with_grounded_vision(self, messages: list[dict], image: np.ndarray) -> str:
+        vision_messages = [
+            {
+                "role": "system",
+                "content": (
+                    "あなたはロボットの視覚観察係です。会話はせず、"
+                    "画像に写っている根拠だけを日本語で短く記録します。"
+                ),
+            },
+            {"role": "user", "content": self._vision_grounding_prompt},
+        ]
+        self._attach_image_to_last_user(vision_messages, image)
+        vision_model = self._select_model(has_image=True)
+        observation = self._post_chat(
+            vision_model,
+            vision_messages,
+            self._vision_grounding_tokens,
+        )
+        if not observation:
+            observation = "観察結果は不明です。"
+        self._last_observation = observation
+        logger.info("Vision observation:\n%s", observation)
+
+        chat_messages = self._to_ollama_messages(messages, has_image=False)
+        self._replace_turn_context(chat_messages, self._grounded_turn_context_prompt())
+        chat_messages.insert(
+            2 if self._system_prompt else 1,
+            {
+                "role": "system",
+                "content": self._vision_observation_prompt(observation),
+            },
+        )
+        return self._post_chat(
+            self._select_model(has_image=False),
+            chat_messages,
+            self._max_new_tokens,
+        )
+
+    def _post_chat(self, model: str, messages: list[dict], max_tokens: int) -> str:
+        if self._client is None:
+            raise RuntimeError("OllamaMultimodalLLM.load() を先に呼んでください")
         payload = {
             "model": model,
-            "messages": ollama_messages,
+            "messages": messages,
             "stream": False,
-            "options": {"num_predict": self._max_new_tokens},
+            "options": {"num_predict": max_tokens},
         }
         response = self._client.post(f"{self._endpoint}/api/chat", json=payload)
         response.raise_for_status()
@@ -127,6 +184,33 @@ class OllamaMultimodalLLM:
         )
 
     @staticmethod
+    def _grounded_turn_context_prompt() -> str:
+        return (
+            "このターンでは、画像そのものではなく直前フレームの観察メモが渡されています。"
+            "観察メモを現在の視界として扱い、メモにない周囲状況は想像しないでください。"
+        )
+
+    @staticmethod
+    def _replace_turn_context(messages: list[dict], content: str) -> None:
+        if len(messages) >= 2 and messages[1].get("role") == "system":
+            messages[1]["content"] = content
+            return
+        if messages and messages[0].get("role") == "system":
+            messages[0]["content"] = content
+            return
+        messages.insert(0, {"role": "system", "content": content})
+
+    @staticmethod
+    def _vision_observation_prompt(observation: str) -> str:
+        return (
+            "このターンでは、別の視覚モデルが直前フレームを観察した結果だけを使えます。\n"
+            "観察メモにない物体、人物、文字、距離、状況を追加で想像しないでください。\n"
+            "観察が曖昧なら曖昧だと伝え、必要ならユーザーに確認してください。\n"
+            "画面説明だけで終わらせず、ユーザーの発話意図への返事として自然に話してください。\n\n"
+            f"観察メモ:\n{observation}"
+        )
+
+    @staticmethod
     def _attach_image_to_last_user(messages: list[dict], image: np.ndarray) -> None:
         import cv2  # type: ignore
 
@@ -169,3 +253,7 @@ class OllamaMultimodalLLM:
     @property
     def is_loaded(self) -> bool:
         return self._loaded
+
+    @property
+    def last_observation(self) -> Optional[str]:
+        return self._last_observation

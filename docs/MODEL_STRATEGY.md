@@ -1,6 +1,6 @@
 # モデル構成と底上げ方針
 
-更新日: 2026-05-17
+更新日: 2026-05-18
 
 ## 結論
 
@@ -9,7 +9,7 @@
 | 役割 | 標準 | 理由 |
 |---|---|---|
 | 通常会話 | Ollama `gemma3:12b` | 比較結果で意図確認が安定。画像を渡さない雑談・意図理解を担当 |
-| 視覚理解 | Ollama `qwen2.5vl:7b` | ユーザーが「これ」「見て」「読んで」と言った時だけ使う |
+| 視覚観察 | Ollama `qwen2.5vl:7b` | ユーザーが「これ」「見て」「読んで」と言った時だけ、見えている事実の観察メモを作る |
 | 比較候補 | Ollama `qwen3.5:9b` / `gemma3:4b` | 速度や軽量性を見たい時の比較対象 |
 | STT | faster-whisper `small` / CPU / `int8` | 会話速度を優先。prompt/hotwordsで底上げする |
 | STT比較候補 | faster-whisper `medium` / CPU / `int8` | 取得済み。精度寄りだが、このPCの実測では遅い |
@@ -24,6 +24,7 @@
 - faster-whisper `medium` をこのPCへ取得し、比較候補としてキャッシュ
 - STTに `initial_prompt`、`hotwords`、`hallucination_silence_threshold` を渡すように変更
 - モデル比較用に `scripts/compare_ollama_models.py` と `scripts/compare_stt_models.py` を追加
+- 画像つきターンを、VLM観察メモ生成と会話生成の2段構成に変更
 
 ## 評価コマンド
 
@@ -79,3 +80,4 @@ STTモデルを追加で取得する場合:
 - 会話モデルに `gemma3:12b` を使う構成の比較。じろえもん人格との相性を見る
 - ロボット制御前の構造化出力。LLM応答とは別に `ActionPlan` を作り、安全ゲートで止める
 - 画像入力の頻度制御。会話ターンごとではなく、必要時だけVLMを呼ぶ現在方針を継続
+- 観察メモを `WorldState` に接続し、bbox/segmentation/depthを後から足せる形にする
