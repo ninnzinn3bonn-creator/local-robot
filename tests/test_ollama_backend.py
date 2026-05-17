@@ -39,6 +39,8 @@ class OllamaBackendTests(unittest.TestCase):
 
         self.assertIn("観察メモ", prompt)
         self.assertIn("想像しない", prompt)
+        self.assertIn("否定", prompt)
+        self.assertIn("Markdown", prompt)
         self.assertIn("机が見える", prompt)
 
     def test_replace_turn_context_updates_existing_system_slot(self):

@@ -35,6 +35,7 @@ from src.perception.stt import WhisperSTT
 from src.perception.wake_word import WakeWordDetector
 from src.reasoning.factory import create_llm
 from src.reasoning.memory import ConversationMemory
+from src.robot import ActionPlan, RobotPlanner, WorldState
 from src.speech.tts import VoicevoxTTS
 from src.utils.logging import ConversationLogger, setup_logging
 from src.utils.metrics import LatencyTimer
@@ -112,6 +113,7 @@ class VisionAudioAgent:
             speaker_id=self.cfg.tts.speaker_id,
         )
         self.memory = ConversationMemory(max_turns=self.cfg.memory.max_turns)
+        self.robot_planner = RobotPlanner()
         self.conv_logger = ConversationLogger(
             log_dir=self.cfg.logging.conversation_log_dir,
             save_frames=self.cfg.logging.save_frames,
@@ -120,6 +122,9 @@ class VisionAudioAgent:
         self._state: AgentState = AgentState.IDLE
         self._last_response_time: float = 0.0
         self._stop_event = asyncio.Event()
+        self._last_observation: str = ""
+        self._last_world_state: WorldState = WorldState(source="startup")
+        self._last_action_plan: ActionPlan = self.robot_planner.idle("startup")
         self.on_state_change: Optional[Callable[[AgentState, AgentState], None]] = None
         self.on_user_text: Optional[Callable[[str], None]] = None
         self.on_turn_complete: Optional[Callable[[Turn], None]] = None
@@ -253,6 +258,7 @@ class VisionAudioAgent:
 
         self.memory.add(user_text, response)
         self.conv_logger.log_bot(response)
+        self._update_robot_context(user_text, response)
         self._last_response_time = time.monotonic()
         lat = timer.summary()
         turn = Turn(
@@ -284,6 +290,18 @@ class VisionAudioAgent:
     def end_continuous_mode(self) -> None:
         """連続会話モードを終了し、次発話からWake Wordを必須にする。"""
         self._last_response_time = 0.0
+
+    @property
+    def last_observation(self) -> str:
+        return self._last_observation
+
+    @property
+    def last_world_state(self) -> WorldState:
+        return self._last_world_state
+
+    @property
+    def last_action_plan(self) -> ActionPlan:
+        return self._last_action_plan
 
     # ---- 内部メソッド ----
 
@@ -403,6 +421,7 @@ class VisionAudioAgent:
 
         console.print(f"[bold green]BOT: {response}[/bold green]")
         self.conv_logger.log_bot(response)
+        self._update_robot_context(user_text, response)
 
         # ---- TTS ----
         self._set_state(AgentState.SPEAKING)
@@ -473,6 +492,30 @@ class VisionAudioAgent:
             )
         raise ValueError(f"Unsupported STT backend: {self.cfg.stt.backend}")
 
+    def _update_robot_context(self, user_text: str, response: str) -> None:
+        """Update robot-facing state from the latest dialogue and vision note."""
+        observation = getattr(self.llm, "last_observation", None)
+        if isinstance(observation, str) and observation.strip():
+            self._last_observation = observation.strip()
+            self._last_world_state = self.robot_planner.world_state_from_observation(
+                self._last_observation
+            )
+            self.conv_logger.log_observation(self._last_observation)
+
+        self._last_action_plan = self.robot_planner.plan_reply(
+            user_text,
+            response,
+            self._last_world_state,
+        )
+        action_summary = ", ".join(
+            f"{action.type.value}:{action.params}" if action.params else action.type.value
+            for action in self._last_action_plan.actions
+        )
+        self.conv_logger.log_action_plan(
+            self._last_action_plan.intent,
+            action_summary,
+        )
+
     def _frame_for_user_text(self, user_text: str) -> Optional[np.ndarray]:
         """会話では原則画像を渡さず、視覚参照があるときだけ最新フレームを添える。"""
         if not self.camera.is_running:
@@ -504,6 +547,16 @@ class VisionAudioAgent:
             "左",
             "前",
             "後ろ",
+            "水路",
+            "用水路",
+            "ゴミ",
+            "ごみ",
+            "清掃",
+            "掃除",
+            "詰まり",
+            "障害物",
+            "壁",
+            "水",
         ]
         visual_phrases = [
             "これ何",

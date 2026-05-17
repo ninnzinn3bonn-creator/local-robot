@@ -4,7 +4,7 @@
 
 ## 目標
 
-このプロジェクトの最終形は、PC上の対話AIではなく、カメラとマイクを持つロボットの「脳」です。会話、視覚、行動判断、実機制御を混ぜると危ないため、行動系は明確に分けます。
+このプロジェクトの最終形は、PC上の対話AIではなく、40cm級のタイヤ/キャタピラ式ロボットを用水路内で走らせ、掃除を続けるための「脳」と操作卓です。会話、視覚、行動判断、実機制御を混ぜると危ないため、行動系は明確に分けます。
 
 ## レイヤー
 
@@ -22,25 +22,28 @@ World State
   見えている物、危険、対象、信頼度
         ↓
 Robot Planner
-  ActionPlan を作る。現時点では発話のみ
+  ActionPlan を作る。移動/清掃は確認つきの提案にする
         ↓
 Safety Gate
   移動、接触、追従は確認や制限を必ず通す
         ↓
 Actuator Adapter
-  モータ、サーボ、外部マイコン、MQTT/WebSocketなど
+  現在はDummyActuator。将来はモータ、サーボ、外部マイコン、MQTT/WebSocketなど
 ```
 
 ## 現在入っている境界
 
-`src/robot/` に、将来の制御出力用の型を追加しました。
+`src/robot/` に、将来の制御出力用の型と安全境界を追加しました。
 
 - `WorldState`: 視界要約、危険、見えている対象、信頼度
-- `RobotAction`: `say`、`look`、`move`、`stop`、`ask_clarification`、`noop`
+- `RobotAction`: `say`、`look`、`move`、`stop`、`clean`、`light`、`ask_clarification`、`noop`
 - `ActionPlan`: 行動列、意図、安全メモ、確認要否
-- `RobotPlanner`: 現在は発話だけを計画し、移動は実行しない保守的な入口
+- `RobotPlanner`: 観察メモと会話から、移動/清掃/停止の保守的な提案を作る
+- `SafetyGate`: 緊急停止、通信、姿勢、バッテリー、視覚警告でコマンドを止める
+- `DummyActuator`: 実モータの代わりに、操作状態だけ更新する
+- `MissionController`: 用水路清掃ミッションの開始、一時停止、再開、完了を管理する
 
-今はPCだけで動かす段階なので、モータ制御はまだ実装しません。かわりに、将来の実機制御が会話ループへ直接混ざらないように境界だけ作っています。
+今はPCだけで動かす段階なので、モータ制御はまだ実行しません。かわりに、将来の実機制御が会話ループへ直接混ざらないように、Web操作卓からSafety GateとDummyActuatorを通す形にしています。
 
 ## 視覚理解の方針
 
@@ -62,8 +65,8 @@ Frame -> qwen2.5vl:7b observation note -> gemma3:12b reply
 
 ## 直近の実装候補
 
-- VLMで「移動前の注意点」を抽出して `WorldState.hazards` に入れる
-- 観察メモをWeb UIとログに表示して、画像認識と会話生成を切り分ける
-- Web UIに内部状態として `WorldState` と `ActionPlan` を表示する
-- `STOP` だけは最優先で通す緊急停止APIを作る
-- モータ実行前に、まずログ出力だけのダミーActuatorを作る
+- Web UIにイベント履歴を時系列表示する
+- `WorldState` にToF/IMU/電流センサー入力を追加する
+- Safety Gateに最大連続走行時間、最大速度、清掃モータ過負荷、浸水検知を足す
+- 実機前に、JSONログだけのリプレイテストを作る
+- マイコン接続用の `ActuatorAdapter` をDummyActuatorから差し替え可能にする

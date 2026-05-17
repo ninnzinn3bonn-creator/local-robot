@@ -20,6 +20,8 @@ LLM router -> Chat model / Vision observation model -> VoicevoxTTS -> Speaker
 VisionAudioAgent -> ConversationMemory
 VisionAudioAgent -> ConversationLogger
 VisionAudioAgent -> RobotPlanner -> ActionPlan
+WebRuntime -> SafetyGate -> DummyActuator
+WebRuntime -> MissionController
 ```
 
 カメラは常に最新フレームだけを保持します。通常会話では画像をLLMへ渡さず、視覚参照がある発話だけ最新フレームを添えます。
@@ -60,8 +62,11 @@ IDLE -> WAKE_WAIT -> LISTENING -> THINKING -> SPEAKING -> WAKE_WAIT
 | `src/reasoning/ollama.py` | Ollama経由のチャット/視覚モデルルーティング | httpx, OpenCV |
 | `src/reasoning/factory.py` | LLM backend選択 | 標準ライブラリ |
 | `src/reasoning/memory.py` | 直近Nターンの会話履歴 | 標準ライブラリ |
-| `src/robot/types.py` | 将来の実機制御へ渡す `WorldState` / `ActionPlan` 型 | 標準ライブラリ |
-| `src/robot/planner.py` | 会話結果から保守的な行動計画を作る境界。現時点では発話のみ | 標準ライブラリ |
+| `src/robot/types.py` | 実機制御へ渡す `WorldState` / `ActionPlan` / `SafetyStatus` / `MissionState` 型 | 標準ライブラリ |
+| `src/robot/planner.py` | 会話結果と観察メモから保守的な行動計画を作る境界 | 標準ライブラリ |
+| `src/robot/safety.py` | 緊急停止、通信、姿勢、バッテリー、視覚警告を確認するSafety Gate | 標準ライブラリ |
+| `src/robot/actuator.py` | 実モータ接続前のダミーActuator。操作状態だけ更新する | 標準ライブラリ |
+| `src/robot/mission.py` | 用水路清掃ミッションの開始、一時停止、再開、完了状態 | 標準ライブラリ |
 | `src/speech/tts.py` | VOICEVOX ENGINE HTTP呼び出し | httpx |
 | `src/utils/logging.py` | richログ、会話ログ、画像ログ | rich, OpenCV |
 | `src/utils/metrics.py` | レイテンシ計測 | 標準ライブラリ |
@@ -75,7 +80,7 @@ IDLE -> WAKE_WAIT -> LISTENING -> THINKING -> SPEAKING -> WAKE_WAIT
 - 各サブモジュールは、できるだけ小さなクラスとして独立させる
 - 会話履歴には画像を保存しない。画像は最新フレームだけをLLMへ渡す
 - `logs/` は個人情報を含む可能性があるためgit管理外にする
-- ロボット制御の実行はMVPに入れない。ただし `src/robot/` に行動計画の境界を置き、将来の実機制御が会話ループへ直接混ざらないようにする
+- 実モータ制御はまだ行わない。ただし `src/robot/` にSafety Gate、Mission、DummyActuatorを置き、将来の実機制御が会話ループへ直接混ざらないようにする
 
 ## まだ整理しないこと
 

@@ -11,6 +11,7 @@
 - ローカルのOllamaで、通常会話は `gemma3:12b`、視覚参照は `qwen2.5vl:7b` に分けて解釈する
 - VOICEVOXで音声応答する
 - Wake Word「ジロー」または「じろえもん」で起動し、応答後は短時間だけ連続会話できる
+- Web操作卓から緊急停止、手動微速操作、清掃ON/OFF、ミッション状態をローカルに管理する
 - クラウドAPIを呼ばず、会話ログとレイテンシをローカルに残す
 
 ## MVP受入基準への対応状況
@@ -49,6 +50,8 @@
 - faster-whisper `medium` の取得と比較。CUDA STTはDLL不足で保留し、標準はCPU `small` に維持
 - Ollamaモデル比較スクリプトとSTT比較スクリプト
 - 将来のロボット制御に向けた `WorldState` / `ActionPlan` / `RobotPlanner` の境界
+- 用水路清掃向けの `SafetyGate`、`DummyActuator`、`MissionController`
+- Web UIの緊急停止、手動操作、清掃ON/OFF、ミッション操作、AI認識根拠表示
 - 軽量ユニットテスト
 - 環境確認、LLMベンチ、カメラ/TTS/マイクSTTスモークスクリプト
 - VOICEVOX起動補助スクリプト
@@ -82,6 +85,14 @@
 - `scripts/compare_ollama_models.py --vision` で `gemma3:12b`、`qwen2.5vl:7b`、`qwen3.5:9b` を比較する
 - `scripts/compare_stt_models.py --models small medium` でSTTの速度と文字起こしを比較する
 - Web UIに観察メモを表示し、ユーザーが見えている根拠をその場で確認できるようにする
+
+### P1: 用水路操作卓検証
+
+- 緊急停止中に前進/後退/旋回/清掃ONがブロックされることを確認する
+- ミッション開始、一時停止、再開、完了の状態遷移を確認する
+- 手動操作がDummyActuatorのテレメトリに反映されることを確認する
+- 観察メモから `WorldState.hazards` / `debris` / `channel_edges` が更新されることを確認する
+- 実機接続前に、すべての移動/清掃操作がログだけで完結することを確認する
 
 ### P3: 評価と調整
 

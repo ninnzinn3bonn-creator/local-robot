@@ -110,6 +110,21 @@ Web UI:
 - テキスト入力から送信でき、STTなしで会話とTTSを確認できる
 - 応答後の連続会話残り時間がメーターで見える
 - 視覚参照のない雑談では、カメラ説明に逃げない
+- `緊急停止` でSafety Gateが有効になり、移動操作が拒否される
+- `解除` 後に手動操作ボタンが再び有効になる
+- `開始`、`一時停止`、`再開`、`完了` でミッション状態が変わる
+- 画像つき会話後、AI認識欄に観察メモ、危険、提案が表示される
+
+PowerShellからAPIだけ確認する場合:
+
+```powershell
+Invoke-RestMethod http://127.0.0.1:8765/api/state
+Invoke-RestMethod -Method Post http://127.0.0.1:8765/api/mission/start -ContentType "application/json; charset=utf-8" -Body (@{ targetDistanceM = 0 } | ConvertTo-Json)
+Invoke-RestMethod -Method Post http://127.0.0.1:8765/api/manual-control -ContentType "application/json; charset=utf-8" -Body (@{ command = "forward" } | ConvertTo-Json)
+Invoke-RestMethod -Method Post http://127.0.0.1:8765/api/estop
+Invoke-RestMethod -Method Post http://127.0.0.1:8765/api/manual-control -ContentType "application/json; charset=utf-8" -Body (@{ command = "forward" } | ConvertTo-Json)
+Invoke-RestMethod -Method Post http://127.0.0.1:8765/api/estop/reset
+```
 
 ## 5. MVP受入チェック
 

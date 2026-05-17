@@ -26,6 +26,7 @@ from urllib.parse import urlparse
 import cv2  # type: ignore
 
 from src.agent import AgentState, Turn, VisionAudioAgent
+from src.robot import DummyActuator, MissionController, SafetyGate
 from src.utils.encoding import configure_utf8_stdio
 
 configure_utf8_stdio()
@@ -84,6 +85,10 @@ class WebRuntime:
         self._manual_expires_at = 0.0
         self._last_state = self.agent.state.name
         self._turn_lock = asyncio.Lock()
+        self._safety_gate = SafetyGate()
+        self._actuator = DummyActuator(self._safety_gate)
+        self._mission = MissionController()
+        self._events: list[dict[str, Any]] = []
 
     def start(self) -> None:
         self._add_message("system", "起動中です。モデルとデバイスを準備しています。")
@@ -111,6 +116,65 @@ class WebRuntime:
         with self._lock:
             self._messages.clear()
             self._add_message("system", "チャット表示を消去しました。")
+        return self.snapshot()
+
+    def emergency_stop(self, reason: str = "operator estop") -> dict[str, Any]:
+        with self._lock:
+            result = self._actuator.emergency_stop(reason)
+            self._mission.estop(reason)
+            self.agent.end_continuous_mode()
+            self._manual_armed = False
+            self._manual_expires_at = 0.0
+            self._status_text = "緊急停止中。周囲確認後に解除してください"
+            self._add_event("estop", result.message)
+        return self.snapshot()
+
+    def reset_estop(self) -> dict[str, Any]:
+        with self._lock:
+            result = self._actuator.reset_estop()
+            self._mission.pause("緊急停止を解除。再開待ち")
+            self._status_text = "緊急停止を解除しました"
+            self._add_event("estop_reset", result.message)
+        return self.snapshot()
+
+    def manual_control(self, command: str) -> dict[str, Any]:
+        with self._lock:
+            result = self._actuator.execute(command, self.agent.last_world_state)
+            if command == "stop":
+                self._mission.pause("手動停止")
+            elif result.accepted and command == "clean_on":
+                self._mission.cleaning("清掃機構ON")
+            elif result.accepted and command == "clean_off":
+                self._mission.resume("清掃機構OFF、走行待ち")
+            elif result.accepted and command in {"forward", "reverse", "turn_left", "turn_right"}:
+                self._mission.resume("手動微速操作")
+            self._status_text = result.message
+            self._add_event("manual_control", result.message, {"command": command})
+        return self.snapshot()
+
+    def mission_command(self, command: str, payload: Optional[dict[str, Any]] = None) -> dict[str, Any]:
+        payload = payload or {}
+        with self._lock:
+            if command == "start":
+                self._mission.start(
+                    target_distance_m=float(payload.get("targetDistanceM") or 0.0),
+                    note="用水路清掃ミッション開始",
+                )
+                self._add_event("mission", "ミッションを開始しました")
+            elif command == "pause":
+                self._mission.pause("オペレーターが一時停止")
+                self._actuator.execute("stop", self.agent.last_world_state)
+                self._add_event("mission", "ミッションを一時停止しました")
+            elif command == "resume":
+                self._mission.resume("オペレーターが再開")
+                self._add_event("mission", "ミッションを再開しました")
+            elif command == "finish":
+                self._mission.finish("オペレーターが完了")
+                self._actuator.execute("stop", self.agent.last_world_state)
+                self._add_event("mission", "ミッションを完了しました")
+            else:
+                self._add_event("mission_error", f"未知のミッション操作: {command}")
+            self._status_text = self._mission.state.note
         return self.snapshot()
 
     def submit_text(self, text: str) -> dict[str, Any]:
@@ -163,6 +227,7 @@ class WebRuntime:
                 "wakeWord": self.agent.cfg.wake_word.phrase,
                 "cameraRunning": self.agent.camera.is_running,
                 "messages": [message.to_dict() for message in self._messages[-80:]],
+                "robot": self._robot_snapshot_locked(),
             }
 
     def _run_loop(self) -> None:
@@ -267,6 +332,38 @@ class WebRuntime:
                 )
             )
 
+    def _robot_snapshot_locked(self) -> dict[str, Any]:
+        telemetry = self._actuator.telemetry
+        safety = self._safety_gate.evaluate(
+            "status",
+            telemetry,
+            self.agent.last_world_state,
+        )
+        return {
+            "telemetry": telemetry.to_dict(),
+            "safety": safety.to_dict(),
+            "mission": self._mission.state.to_dict(),
+            "lastObservation": self.agent.last_observation,
+            "worldState": self.agent.last_world_state.to_dict(),
+            "actionPlan": self.agent.last_action_plan.to_dict(),
+            "events": self._events[-20:],
+        }
+
+    def _add_event(
+        self,
+        kind: str,
+        message: str,
+        data: Optional[dict[str, Any]] = None,
+    ) -> None:
+        self._events.append(
+            {
+                "timestamp": time.time(),
+                "kind": kind,
+                "message": message,
+                "data": data or {},
+            }
+        )
+
 
 class LocalRobotHandler(BaseHTTPRequestHandler):
     runtime: WebRuntime
@@ -306,6 +403,32 @@ class LocalRobotHandler(BaseHTTPRequestHandler):
             return
         if path == "/api/clear":
             self._send_json(self.runtime.clear_messages())
+            return
+        if path == "/api/estop":
+            self._send_json(self.runtime.emergency_stop())
+            return
+        if path == "/api/estop/reset":
+            self._send_json(self.runtime.reset_estop())
+            return
+        if path == "/api/manual-control":
+            try:
+                payload = self._read_json()
+                command = str(payload.get("command", ""))
+            except Exception as exc:
+                self._send_text(f"Bad request: {exc}", HTTPStatus.BAD_REQUEST)
+                return
+            self._send_json(self.runtime.manual_control(command))
+            return
+        if path.startswith("/api/mission/"):
+            command = path.removeprefix("/api/mission/")
+            payload = {}
+            if command == "start":
+                try:
+                    payload = self._read_json()
+                except Exception as exc:
+                    self._send_text(f"Bad request: {exc}", HTTPStatus.BAD_REQUEST)
+                    return
+            self._send_json(self.runtime.mission_command(command, payload))
             return
         if path == "/api/text":
             try:

@@ -9,12 +9,16 @@
   <body>
     <header class="topbar">
       <div>
-        <h1>Local Robot</h1>
+        <h1>Waterway Robot</h1>
         <p id="statusText">起動中</p>
       </div>
-      <div class="state-pill" id="statePill">
-        <span class="state-dot"></span>
-        <span id="stateLabel">起動中</span>
+      <div class="top-actions">
+        <button class="danger" id="estopButton" type="button">緊急停止</button>
+        <button id="resetEstopButton" type="button">解除</button>
+        <div class="state-pill" id="statePill">
+          <span class="state-dot"></span>
+          <span id="stateLabel">起動中</span>
+        </div>
       </div>
     </header>
 
@@ -37,10 +41,77 @@
             <span class="label">連続会話</span>
             <strong id="continuousStatus">待機なし</strong>
           </div>
+          <div>
+            <span class="label">安全</span>
+            <strong id="safetyStatus">初期化中</strong>
+          </div>
+          <div>
+            <span class="label">ミッション</span>
+            <strong id="missionStatus">待機中</strong>
+          </div>
+          <div>
+            <span class="label">清掃</span>
+            <strong id="cleaningStatus">OFF</strong>
+          </div>
         </div>
       </section>
 
-      <section class="chat-pane" aria-label="会話">
+      <section class="chat-pane" aria-label="操作と会話">
+        <div class="robot-console">
+          <section class="console-block" aria-label="ロボット操作">
+            <div class="block-title">
+              <h2>操作</h2>
+              <span id="driveStatus">停止中</span>
+            </div>
+            <div class="drive-pad">
+              <button id="forwardButton" type="button">前進</button>
+              <button id="leftButton" type="button">左</button>
+              <button class="stop" id="stopButton" type="button">停止</button>
+              <button id="rightButton" type="button">右</button>
+              <button id="reverseButton" type="button">後退</button>
+            </div>
+            <div class="tool-row">
+              <button id="cleanOnButton" type="button">清掃ON</button>
+              <button id="cleanOffButton" type="button">清掃OFF</button>
+              <button id="lightsButton" type="button">ライト</button>
+            </div>
+          </section>
+
+          <section class="console-block" aria-label="ミッション">
+            <div class="block-title">
+              <h2>ミッション</h2>
+              <span id="missionNote">待機中</span>
+            </div>
+            <div class="mission-row">
+              <button id="missionStartButton" type="button">開始</button>
+              <button id="missionPauseButton" type="button">一時停止</button>
+              <button id="missionResumeButton" type="button">再開</button>
+              <button id="missionFinishButton" type="button">完了</button>
+            </div>
+          </section>
+
+          <section class="console-block" aria-label="AI認識">
+            <div class="block-title">
+              <h2>AI認識</h2>
+              <span id="planIntent">待機中</span>
+            </div>
+            <dl class="robot-readout">
+              <div>
+                <dt>観察</dt>
+                <dd id="observationText">まだ観察メモはありません</dd>
+              </div>
+              <div>
+                <dt>危険</dt>
+                <dd id="hazardsText">なし</dd>
+              </div>
+              <div>
+                <dt>提案</dt>
+                <dd id="actionPlanText">なし</dd>
+              </div>
+            </dl>
+          </section>
+        </div>
+
         <div class="controls">
           <button class="primary" id="listenButton" type="button">話しかける</button>
           <button id="endButton" type="button">会話終了</button>
