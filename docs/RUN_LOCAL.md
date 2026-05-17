@@ -10,6 +10,7 @@
 - VAD: 軽量Energy VAD
 - TTS: VOICEVOX CPU / speaker_id=3
 - Mic: `device=1` AT2020USB-X
+- Wake Word: 短く認識しやすい `ジロー` を推奨。`じろえもん` や `hey jiro` も別名として拾う
 
 2026-05-17時点で、この構成は実機確認済みです。カメラ画像のGemma3認識、VOICEVOX読み上げ、マイク録音、`run.bat --one-turn`、通常常駐モードの起動停止まで通っています。
 
@@ -59,7 +60,7 @@ PyTorch未インストールは、Ollama構成では問題ありません。
 `smoke_mic_stt.py` は録音開始後に短く話してください。例:
 
 ```text
-じろえもん、これはテストです
+ジロー、これはテストです
 ```
 
 ## 4. カメラ対話の単発確認
@@ -81,7 +82,7 @@ PowerShell上で使う場合:
 起動が完了したら、マイクに向かって次のように話します。
 
 ```text
-じろえもん、これは何？
+ジロー、これは何？
 ```
 
 応答後8秒以内はWake Wordなしで続けて質問できます。
@@ -106,6 +107,8 @@ http://127.0.0.1:8765
 
 画面左にカメラ映像、右に会話ログが表示されます。通常はWake Wordで開始できます。`話しかける` ボタンを押すと、次の発話だけWake Wordなしで会話を開始できます。応答後は、右側のメーターにWake Wordなしで続けて話せる残り秒数が表示されます。`会話終了` を押すと、その連続会話モードを手動で終えます。
 
+Web UIの映像は `camera.capture_fps` と `web/app.js` の更新間隔で決まります。現在はカメラ取得12fps、ブラウザ更新約5.5fpsです。
+
 ## 調整ポイント
 
 ### マイクが違う
@@ -118,7 +121,7 @@ http://127.0.0.1:8765
 
 ### Wake Wordが認識されない
 
-まず `scripts/smoke_mic_stt.py --seconds 5` で実際の文字起こし結果を確認します。`じろえもん` が別表記になる場合は `wake_word.aliases` に追加します。
+まず `scripts/smoke_mic_stt.py --seconds 5` で実際の文字起こし結果を確認します。`ジロー` や `じろえもん` が別表記になる場合は `wake_word.aliases` に追加します。
 
 ```powershell
 .\.venv\Scripts\python.exe scripts\smoke_mic_stt.py --seconds 5

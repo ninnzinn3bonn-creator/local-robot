@@ -18,7 +18,7 @@ from typing import List, Optional, Tuple
 def _normalize(text: str) -> str:
     """ひらがな・カタカナ・漢字を含むテキストを正規化する。"""
     # Unicode 正規化（NFKC: 全角英数→半角、互換文字展開）
-    text = unicodedata.normalize("NFKC", text)
+    text = unicodedata.normalize("NFKC", text).casefold()
     # 空白除去
     text = re.sub(r"\s+", "", text)
     return text
@@ -46,7 +46,7 @@ def _normalize_with_index(text: str) -> Tuple[str, List[int]]:
     index_map: list[int] = []
 
     for original_index, ch in enumerate(text):
-        for normalized_ch in unicodedata.normalize("NFKC", ch):
+        for normalized_ch in unicodedata.normalize("NFKC", ch).casefold():
             if normalized_ch.isspace():
                 continue
             normalized_chars.append(_to_hiragana(normalized_ch))

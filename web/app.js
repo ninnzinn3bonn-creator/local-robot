@@ -179,4 +179,4 @@ clearButton.addEventListener("click", async () => {
 refreshState();
 refreshCamera();
 setInterval(refreshState, 500);
-setInterval(refreshCamera, 450);
+setInterval(refreshCamera, 180);

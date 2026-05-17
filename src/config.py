@@ -22,7 +22,11 @@ class LLMConfig(BaseModel):
     dtype: str = "auto"
     max_new_tokens: int = 256
     context_window: int = 128_000
-    system_prompt: str = "あなたはカメラ映像を見ながら会話する日本語アシスタントです。"
+    system_prompt: str = (
+        "あなたは「じろえもん」という日本語のローカルロボット相棒です。"
+        "カメラ映像は状況把握の補助として使い、ユーザーが明示的に聞いていない限り、"
+        "画面説明だけを返さず普通に会話してください。"
+    )
 
 
 class STTConfig(BaseModel):
@@ -51,7 +55,7 @@ class CameraConfig(BaseModel):
     index: int = 0
     width: int = 1280
     height: int = 720
-    capture_fps: int = 2
+    capture_fps: int = 12
 
 
 class MicConfig(BaseModel):
@@ -68,9 +72,24 @@ class MemoryConfig(BaseModel):
 
 class WakeWordConfig(BaseModel):
     enabled: bool = True
-    phrase: str = "じろえもん"
+    phrase: str = "ジロー"
     aliases: List[str] = Field(default_factory=lambda: [
-        "じろえもん", "ジロエモン", "次郎衛門", "じろうえもん"
+        "ジロー",
+        "じろー",
+        "じろう",
+        "ジロウ",
+        "二郎",
+        "じろえもん",
+        "ジロエモン",
+        "ジローエモン",
+        "じろーえもん",
+        "次郎衛門",
+        "じろうえもん",
+        "ねえジロー",
+        "ヘイジロー",
+        "hey jiro",
+        "heyjiro",
+        "hello jiro",
     ])
     timeout_after_response_sec: int = 8
 

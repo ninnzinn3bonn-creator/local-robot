@@ -28,6 +28,14 @@ class WakeWordDetectorTests(unittest.TestCase):
         self.assertTrue(detected)
         self.assertEqual(content, "これ何？")
 
+    def test_detects_case_insensitive_english_alias(self):
+        detector = WakeWordDetector(["hey jiro"])
+
+        detected, content = detector.detect("Hey Jiro これ見て")
+
+        self.assertTrue(detected)
+        self.assertEqual(content, "これ見て")
+
     def test_disabled_detector_passes_text_through(self):
         detector = WakeWordDetector(["じろえもん"], enabled=False)
 
