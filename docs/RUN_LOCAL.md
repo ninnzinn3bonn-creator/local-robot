@@ -1,0 +1,100 @@
+# このPCで起動する手順
+
+更新日: 2026-05-17
+
+このPCでは、最短で動く構成として次を使います。
+
+- LLM/Vision: Ollama `gemma3:4b`
+- Camera: OpenCV `camera.index=0`
+- STT: faster-whisper `small` / CPU int8
+- VAD: 軽量Energy VAD
+- TTS: VOICEVOX CPU / speaker_id=3
+- Mic: `device=1` AT2020USB-X
+
+2026-05-17時点で、この構成は実機確認済みです。カメラ画像のGemma3認識、VOICEVOX読み上げ、マイク録音、`run.bat --one-turn`、通常常駐モードの起動停止まで通っています。
+
+## 1. サービスを起動
+
+Ollamaは既に常駐しています。VOICEVOXは次で起動します。
+
+```powershell
+.\scripts\start_voicevox.ps1
+```
+
+## 2. 環境確認
+
+```powershell
+.\.venv\Scripts\python.exe scripts\check_env.py
+```
+
+期待値:
+
+- Python 3.11.x
+- `opencv-python`, `sounddevice`, `soundfile`, `httpx`, `rich`, `faster-whisper` がOK
+- VOICEVOX ENGINE稼働中
+- カメラ index 0 が見える
+- マイク device 1 AT2020USB-X が見える
+
+PyTorch未インストールは、Ollama構成では問題ありません。
+
+## 3. 個別スモークテスト
+
+```powershell
+.\.venv\Scripts\python.exe scripts\smoke_camera.py --ask
+.\.venv\Scripts\python.exe scripts\smoke_tts.py
+.\.venv\Scripts\python.exe scripts\smoke_mic_stt.py --seconds 5
+```
+
+`smoke_mic_stt.py` は録音開始後に短く話してください。例:
+
+```text
+じろえもん、これはテストです
+```
+
+## 4. カメラ対話の単発確認
+
+```powershell
+.\.venv\Scripts\python.exe main.py --one-turn "今カメラに何が映っていますか？日本語で短く答えてください。"
+```
+
+ここで画像認識結果が表示され、VOICEVOXで読み上げられれば、視覚応答の基本経路はOKです。
+
+## 5. 通常起動
+
+```powershell
+.\run.bat
+```
+
+起動が完了したら、マイクに向かって次のように話します。
+
+```text
+じろえもん、これは何？
+```
+
+応答後8秒以内はWake Wordなしで続けて質問できます。
+
+```text
+色は？
+```
+
+## 調整ポイント
+
+### マイクが違う
+
+`scripts/check_env.py` のマイク一覧を見て、[config.yaml](../config.yaml) の `mic.device` を変更します。
+
+### カメラが違う
+
+`camera.index` を `0` から `4` などに変更します。
+
+### Wake Wordが認識されない
+
+まず `scripts/smoke_mic_stt.py --seconds 5` で実際の文字起こし結果を確認します。`じろえもん` が別表記になる場合は `wake_word.aliases` に追加します。
+
+```powershell
+.\.venv\Scripts\python.exe scripts\smoke_mic_stt.py --seconds 5
+```
+
+### STTが遅い/弱い
+
+初期値は速さ重視で `small` です。精度が足りない場合は `stt.model` を `medium` または `large-v3` に上げます。CPUでは遅くなるため、まず `medium` から試します。

@@ -1,0 +1,30 @@
+# ローカルモーダルエージェント — .gitignore
+
+# 会話ログ（個人情報を含む可能性あり）
+logs/
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+dist/
+build/
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.coverage
+htmlcov/
+
+# モデルキャッシュ
+*.bin
+*.safetensors
+.cache/
+
+# 環境変数
+.env
+
+# エディタ
+.vscode/
+.idea/
