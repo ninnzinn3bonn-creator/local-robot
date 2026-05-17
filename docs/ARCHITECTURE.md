@@ -14,14 +14,17 @@
 ## データフロー
 
 ```text
-Camera -> FrameBuffer -> VisionAudioAgent -> LLM backend
+Camera -> FrameBuffer -> VisionAudioAgent -> LLM router
 Mic -> VAD backend -> STT backend -> WakeWordDetector -> VisionAudioAgent
-LLM backend -> VoicevoxTTS -> Speaker
+LLM router -> Chat model or Vision model -> VoicevoxTTS -> Speaker
 VisionAudioAgent -> ConversationMemory
 VisionAudioAgent -> ConversationLogger
+VisionAudioAgent -> RobotPlanner -> ActionPlan
 ```
 
-カメラは常に最新フレームだけを保持します。LLMには会話履歴と、その時点の最新フレームを渡します。
+カメラは常に最新フレームだけを保持します。通常会話では画像をLLMへ渡さず、視覚参照がある発話だけ最新フレームを添えます。
+
+標準構成では、通常会話は `llm.chat_model_id`、視覚参照つきのターンは `llm.vision_model_id` に送ります。これにより、会話品質と画像認識の遅延を分離します。
 
 ## 状態機械
 
@@ -54,9 +57,11 @@ IDLE -> WAKE_WAIT -> LISTENING -> THINKING -> SPEAKING -> WAKE_WAIT
 | `src/perception/wake_word.py` | Wake Word正規化、一致、本文切り出し | 標準ライブラリ |
 | `src/reasoning/llm.py` | Qwen2.5-VLロードと推論 | torch, transformers, bitsandbytes, PIL, OpenCV |
 | `src/reasoning/gemma.py` | Gemma 4ロード、画像+テキスト推論、実験的ASR | torch, transformers, bitsandbytes, PIL, soundfile |
-| `src/reasoning/ollama.py` | Ollama経由の画像+テキスト推論。標準構成は `gemma3:4b` | httpx, OpenCV |
+| `src/reasoning/ollama.py` | Ollama経由のチャット/視覚モデルルーティング | httpx, OpenCV |
 | `src/reasoning/factory.py` | LLM backend選択 | 標準ライブラリ |
 | `src/reasoning/memory.py` | 直近Nターンの会話履歴 | 標準ライブラリ |
+| `src/robot/types.py` | 将来の実機制御へ渡す `WorldState` / `ActionPlan` 型 | 標準ライブラリ |
+| `src/robot/planner.py` | 会話結果から保守的な行動計画を作る境界。現時点では発話のみ | 標準ライブラリ |
 | `src/speech/tts.py` | VOICEVOX ENGINE HTTP呼び出し | httpx |
 | `src/utils/logging.py` | richログ、会話ログ、画像ログ | rich, OpenCV |
 | `src/utils/metrics.py` | レイテンシ計測 | 標準ライブラリ |
@@ -70,14 +75,13 @@ IDLE -> WAKE_WAIT -> LISTENING -> THINKING -> SPEAKING -> WAKE_WAIT
 - 各サブモジュールは、できるだけ小さなクラスとして独立させる
 - 会話履歴には画像を保存しない。画像は最新フレームだけをLLMへ渡す
 - `logs/` は個人情報を含む可能性があるためgit管理外にする
-- ロボット制御はMVPに入れない。将来は `actuation/` や通信モジュールとして追加する
+- ロボット制御の実行はMVPに入れない。ただし `src/robot/` に行動計画の境界を置き、将来の実機制御が会話ループへ直接混ざらないようにする
 
 ## まだ整理しないこと
 
 現時点では次の大きな変更は避けます。
 
 - `src` パッケージ名のリネーム
-- Web UI追加
 - 物体追跡、自己位置推定、モータ制御の実装
 
 これらはMVPの実機通し検証が済んでから進めます。

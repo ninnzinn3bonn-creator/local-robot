@@ -74,7 +74,12 @@ def main() -> None:
     cfg = load_config(args.config)
     setup_logging("INFO")
 
-    print(f"LLM backend={cfg.llm.backend} model={cfg.llm.model_id} をロード中...")
+    chat_model = cfg.llm.chat_model_id or cfg.llm.model_id
+    vision_model = cfg.llm.vision_model_id or cfg.llm.model_id
+    print(
+        f"LLM backend={cfg.llm.backend} "
+        f"chat={chat_model} vision={vision_model} をロード中..."
+    )
     llm = create_llm(cfg.llm)
     llm.load(device=cfg.device)
 
@@ -97,8 +102,8 @@ def main() -> None:
         image = make_dummy_image()
 
     # ベンチマーク実行
-    bench(llm, "これは何ですか？日本語で簡潔に答えてください。", None, args.runs)
-    bench(llm, "この画像に何が映っていますか？日本語で簡潔に答えてください。", image, args.runs)
+    bench(llm, "今日は少し疲れたよ。じろえもんとして短く自然に返して。", None, args.runs)
+    bench(llm, "この画像を見て、ロボットが動く前に注意すべき点を日本語で短く答えてください。", image, args.runs)
 
     print("\n✓ ベンチマーク完了")
 

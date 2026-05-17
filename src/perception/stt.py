@@ -29,12 +29,18 @@ class WhisperSTT:
         model: str = "large-v3",
         compute_type: str = "int8_float16",
         language: str = "ja",
+        initial_prompt: Optional[str] = None,
+        hotwords: Optional[str] = None,
+        hallucination_silence_threshold: float = 0.7,
         local_files_only: bool = True,
         download_root: Optional[str] = None,
     ) -> None:
         self._model_size = model
         self._compute_type = compute_type
         self._language = language
+        self._initial_prompt = initial_prompt
+        self._hotwords = hotwords
+        self._hallucination_silence_threshold = hallucination_silence_threshold
         self._local_files_only = local_files_only
         self._download_root = download_root
         self._model = None
@@ -71,6 +77,9 @@ class WhisperSTT:
             condition_on_previous_text=False,
             no_speech_threshold=0.6,
             log_prob_threshold=-1.0,
+            initial_prompt=self._initial_prompt,
+            hotwords=self._hotwords,
+            hallucination_silence_threshold=self._hallucination_silence_threshold,
         )
 
         texts = [seg.text.strip() for seg in segments]

@@ -1,8 +1,10 @@
-device: "cpu"              # Ollamaは独立してGPUを使う。ここはSTT用
+device: "cpu"              # Ollamaは独立してGPUを使う。ここは主にSTT用
 
 llm:
   backend: "ollama"         # ollama / gemma / qwen
-  model_id: "gemma3:4b"     # Ollamaの視覚対応Gemma系モデル
+  model_id: "qwen2.5vl:7b"  # 互換用。vision_model_id 未指定時にも使う
+  chat_model_id: "gemma3:12b"      # 通常会話は応答品質が安定したモデルを使う
+  vision_model_id: "qwen2.5vl:7b"  # 視覚参照がある発話だけVLMを使う
   endpoint: "http://127.0.0.1:11434"
   quantization: "q4"
   dtype: "auto"
@@ -14,6 +16,7 @@ llm:
     カメラ映像は、ロボットとして安全に動くための状況把握や、ユーザーが「これ」「そこ」「見えるもの」と言ったときの補助情報として使います。
     ユーザーが明示的に聞いていない限り、画面説明だけを返さないでください。
     画像を受け取っても、会話の主題が画像でなければ、画像内の物体や背景に触れないでください。
+    画像が渡されていないターンでは、目の前の物、机、部屋、充電ステーションなどの周囲状況を想像しないでください。
     まずユーザーの発話意図に答え、視界情報が役に立つ場合だけ自然に一文添えてください。
     性格は、やさしく、親しみやすく、少しおちゃめで、頼れる未来の相棒です。
     断定しすぎず、ユーザーが考えやすくなるように足りない視点をそっと補ってください。
@@ -25,6 +28,9 @@ stt:
   model: "small"
   compute_type: "int8"
   language: "ja"
+  initial_prompt: "ジロー、じろえもん、ヘイジロー。日本語の短い会話です。"
+  hotwords: "ジロー じろえもん ヘイジロー これ 読んで 見て"
+  hallucination_silence_threshold: 0.7
   local_files_only: true     # 完全オフライン運用: 事前に取得済みのローカルキャッシュだけ使う
   download_root: null
 

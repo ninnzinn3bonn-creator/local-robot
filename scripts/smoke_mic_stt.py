@@ -57,6 +57,9 @@ def main() -> int:
         model=cfg.stt.model,
         compute_type=cfg.stt.compute_type,
         language=cfg.stt.language,
+        initial_prompt=cfg.stt.initial_prompt,
+        hotwords=cfg.stt.hotwords,
+        hallucination_silence_threshold=cfg.stt.hallucination_silence_threshold,
         local_files_only=cfg.stt.local_files_only,
         download_root=cfg.stt.download_root,
     )

@@ -38,6 +38,7 @@
 
 ```powershell
 .\.venv\Scripts\python.exe scripts\bench_llm.py --runs 3
+.\.venv\Scripts\python.exe scripts\compare_ollama_models.py --runs 1 --vision
 ```
 
 見るところ:
@@ -46,6 +47,7 @@
 - テキストのみ推論が返る
 - ダミー画像つき推論が返る
 - p50/p95が記録される
+- 会話モデルと視覚モデルを分けた時に、雑談がカメラ説明へ逃げない
 
 ### VOICEVOX
 
@@ -65,6 +67,7 @@
 .\.venv\Scripts\python.exe scripts\smoke_camera.py --ask
 .\.venv\Scripts\python.exe scripts\smoke_tts.py
 .\.venv\Scripts\python.exe scripts\smoke_mic_stt.py --seconds 5
+.\.venv\Scripts\python.exe scripts\compare_stt_models.py --models small medium
 ```
 
 ## 4. 統合チェック
@@ -132,6 +135,14 @@ Web UI:
 - 通常常駐モード: VAD、STT、LLM、カメラ、マイクの起動停止に成功
 - Web UI: 起動、状態API、カメラJPEG、静的画面の取得を確認
 - Web UIテキスト入力: 日本語入力で雑談応答し、カメラ説明に逃げないことを確認
+
+2026-05-17 追加確認:
+
+- `scripts/check_project.py`: 新規ロボット境界とモデル分離テストを含めて合格
+- `scripts/check_env.py`: `gemma3:12b`、`qwen2.5vl:7b`、VOICEVOX、カメラ、マイクを確認
+- `scripts/compare_ollama_models.py --runs 1 --vision`: `gemma3:12b` を通常会話、`qwen2.5vl:7b` を視覚に使う方針を採用
+- `scripts/compare_stt_models.py --models small medium --device cpu --compute-type int8`: `small` 約3.5秒、`medium` 約8.6秒。標準は `small` 継続
+- Web UI: `/api/state` と `/api/frame.jpg` が成功。テキスト入力で1ターン応答し、絵文字除去後の応答を確認
 
 ## 7. 失敗時の切り分け順
 

@@ -4,6 +4,8 @@
 
 ## 結論
 
+現在の標準構成は、単一のGemma3 4Bではなく、通常会話モデルと視覚モデルを分ける方針へ更新しています。最新の採用構成と比較手順は [MODEL_STRATEGY.md](MODEL_STRATEGY.md) を優先してください。
+
 MVPのLLM部分は、Qwen2.5-VL固定からGemma系へ移す価値があります。このPCでまず動かす標準構成は、Ollama `gemma3:4b` です。PyTorch、Transformers、bitsandbytesを必須にせず、画像+テキスト応答まで短時間で動かせるためです。
 
 次の比較対象として、Hugging Faceの `google/gemma-4-E4B-it` または `google/gemma-4-E2B-it` を残します。画像、テキスト、音声入力を1つのモデルに寄せられるため、将来的に `faster-whisper` 周辺を省略できる可能性があります。

@@ -22,12 +22,16 @@ class OllamaMultimodalLLM:
     def __init__(
         self,
         model_id: str = "gemma3:4b",
+        chat_model_id: Optional[str] = None,
+        vision_model_id: Optional[str] = None,
         endpoint: str = "http://127.0.0.1:11434",
         max_new_tokens: int = 256,
         system_prompt: str = "あなたはカメラ映像を見ながら会話する日本語アシスタントです。",
         timeout: float = 300.0,
     ) -> None:
         self._model_id = model_id
+        self._chat_model_id = chat_model_id
+        self._vision_model_id = vision_model_id
         self._endpoint = endpoint.rstrip("/")
         self._max_new_tokens = max_new_tokens
         self._system_prompt = system_prompt
@@ -46,15 +50,16 @@ class OllamaMultimodalLLM:
                 f"Ollama server is not available at {self._endpoint}."
             ) from exc
 
-        logger.info(f"Ollama model '{self._model_id}' をウォームアップ中...")
-        payload = {
-            "model": self._model_id,
-            "messages": [{"role": "user", "content": "準備できていますか？"}],
-            "stream": False,
-            "options": {"num_predict": 8},
-        }
-        response = self._client.post(f"{self._endpoint}/api/chat", json=payload)
-        response.raise_for_status()
+        for model in self._configured_models():
+            logger.info(f"Ollama model '{model}' をウォームアップ中...")
+            payload = {
+                "model": model,
+                "messages": [{"role": "user", "content": "準備できていますか？"}],
+                "stream": False,
+                "options": {"num_predict": 8},
+            }
+            response = self._client.post(f"{self._endpoint}/api/chat", json=payload)
+            response.raise_for_status()
         self._loaded = True
         logger.info("Ollama backend 起動完了")
 
@@ -66,12 +71,14 @@ class OllamaMultimodalLLM:
         if self._client is None:
             raise RuntimeError("OllamaMultimodalLLM.load() を先に呼んでください")
 
-        ollama_messages = self._to_ollama_messages(messages)
+        has_image = image is not None
+        ollama_messages = self._to_ollama_messages(messages, has_image=has_image)
         if image is not None:
             self._attach_image_to_last_user(ollama_messages, image)
 
+        model = self._select_model(has_image)
         payload = {
-            "model": self._model_id,
+            "model": model,
             "messages": ollama_messages,
             "stream": False,
             "options": {"num_predict": self._max_new_tokens},
@@ -79,12 +86,18 @@ class OllamaMultimodalLLM:
         response = self._client.post(f"{self._endpoint}/api/chat", json=payload)
         response.raise_for_status()
         data = response.json()
-        return data.get("message", {}).get("content", "").strip()
+        return self._clean_response(data.get("message", {}).get("content", ""))
 
-    def _to_ollama_messages(self, messages: list[dict]) -> list[dict]:
+    def _to_ollama_messages(self, messages: list[dict], has_image: bool) -> list[dict]:
         ollama_messages: list[dict] = []
         if self._system_prompt:
             ollama_messages.append({"role": "system", "content": self._system_prompt})
+        ollama_messages.append(
+            {
+                "role": "system",
+                "content": self._turn_context_prompt(has_image),
+            }
+        )
 
         for message in messages:
             content = message.get("content", "")
@@ -102,6 +115,18 @@ class OllamaMultimodalLLM:
         return ollama_messages
 
     @staticmethod
+    def _turn_context_prompt(has_image: bool) -> str:
+        if has_image:
+            return (
+                "このターンには画像が渡されています。画像はロボットの状況把握に使い、"
+                "ユーザーの質問に必要な範囲だけ自然に触れてください。"
+            )
+        return (
+            "このターンには画像が渡されていません。目の前、カメラ、視界、机、充電ステーションなど、"
+            "見えていない周囲の状況を想像して話さないでください。純粋なテキスト会話として返答してください。"
+        )
+
+    @staticmethod
     def _attach_image_to_last_user(messages: list[dict], image: np.ndarray) -> None:
         import cv2  # type: ignore
 
@@ -115,7 +140,32 @@ class OllamaMultimodalLLM:
                 messages[i]["images"] = [b64]
                 return
 
+    def _select_model(self, has_image: bool) -> str:
+        if has_image:
+            return self._vision_model_id or self._model_id
+        return self._chat_model_id or self._model_id
+
+    def _configured_models(self) -> list[str]:
+        models = [
+            self._chat_model_id or self._model_id,
+            self._vision_model_id or self._model_id,
+        ]
+        deduped: list[str] = []
+        for model in models:
+            if model and model not in deduped:
+                deduped.append(model)
+        return deduped
+
+    @staticmethod
+    def _clean_response(text: str) -> str:
+        return "".join(
+            ch for ch in text.strip()
+            if not (
+                0x1F000 <= ord(ch) <= 0x1FAFF
+                or 0x2600 <= ord(ch) <= 0x27BF
+            )
+        ).strip()
+
     @property
     def is_loaded(self) -> bool:
         return self._loaded
-

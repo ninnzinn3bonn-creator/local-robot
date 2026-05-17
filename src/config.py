@@ -16,7 +16,9 @@ from pydantic import BaseModel, Field
 
 class LLMConfig(BaseModel):
     backend: str = "ollama"
-    model_id: str = "gemma3:4b"
+    model_id: str = "qwen2.5vl:7b"
+    chat_model_id: Optional[str] = "gemma3:12b"
+    vision_model_id: Optional[str] = "qwen2.5vl:7b"
     endpoint: str = "http://127.0.0.1:11434"
     quantization: str = "q4"
     dtype: str = "auto"
@@ -27,15 +29,19 @@ class LLMConfig(BaseModel):
         "カメラ映像は状況把握の補助として使い、ユーザーが明示的に聞いていない限り、"
         "画面説明だけを返さず普通に会話してください。"
         "会話の主題が画像でなければ、画像内の物体や背景に触れないでください。"
+        "画像が渡されていないターンでは、見えていない周囲の状況を想像しないでください。"
         "音声で読み上げるため、絵文字や顔文字は使わないでください。"
     )
 
 
 class STTConfig(BaseModel):
-    backend: str = "gemma"
-    model: str = "large-v3"
-    compute_type: str = "int8_float16"
+    backend: str = "faster-whisper"
+    model: str = "small"
+    compute_type: str = "int8"
     language: str = "ja"
+    initial_prompt: str = "ジロー、じろえもん、ヘイジロー。日本語の短い会話です。"
+    hotwords: str = "ジロー じろえもん ヘイジロー これ 読んで 見て"
+    hallucination_silence_threshold: float = 0.7
     local_files_only: bool = True
     download_root: Optional[str] = None
 
@@ -119,7 +125,7 @@ class UIConfig(BaseModel):
 # ---------------------------------------------------------------------------
 
 class AppConfig(BaseModel):
-    device: str = "cuda:0"
+    device: str = "cpu"
     llm: LLMConfig = Field(default_factory=LLMConfig)
     stt: STTConfig = Field(default_factory=STTConfig)
     vad: VADConfig = Field(default_factory=VADConfig)

@@ -15,6 +15,8 @@ def create_llm(cfg: LLMConfig) -> MultimodalLLM:
     if backend in {"ollama", "ollama-gemma", "ollama-vision"}:
         return OllamaMultimodalLLM(
             model_id=cfg.model_id,
+            chat_model_id=cfg.chat_model_id,
+            vision_model_id=cfg.vision_model_id,
             endpoint=cfg.endpoint,
             max_new_tokens=cfg.max_new_tokens,
             system_prompt=cfg.system_prompt,

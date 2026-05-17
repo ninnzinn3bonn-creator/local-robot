@@ -96,6 +96,9 @@ class VisionAudioAgent:
                 model=self.cfg.stt.model,
                 compute_type=self.cfg.stt.compute_type,
                 language=self.cfg.stt.language,
+                initial_prompt=self.cfg.stt.initial_prompt,
+                hotwords=self.cfg.stt.hotwords,
+                hallucination_silence_threshold=self.cfg.stt.hallucination_silence_threshold,
                 local_files_only=self.cfg.stt.local_files_only,
                 download_root=self.cfg.stt.download_root,
             )

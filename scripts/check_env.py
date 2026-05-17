@@ -190,11 +190,22 @@ def check_ollama() -> None:
         r = httpx.get(f"{cfg.llm.endpoint}/api/tags", timeout=5.0)
         r.raise_for_status()
         models = [m.get("name") for m in r.json().get("models", [])]
-        if cfg.llm.model_id in models:
-            print(f"  ✓ Ollama 稼働中 / model={cfg.llm.model_id}")
+        wanted = [
+            cfg.llm.chat_model_id or cfg.llm.model_id,
+            cfg.llm.vision_model_id or cfg.llm.model_id,
+        ]
+        missing = []
+        for model in dict.fromkeys(wanted):
+            if model in models:
+                print(f"  ✓ model={model}")
+            else:
+                print(f"  ✗ model={model} が未取得")
+                missing.append(model)
+        if missing:
+            for model in missing:
+                print("    → ollama pull " + model)
         else:
-            print(f"  ✗ model={cfg.llm.model_id} が未取得")
-            print("    → ollama pull " + cfg.llm.model_id)
+            print("  ✓ Ollama 稼働中")
     except Exception as e:
         print(f"  ✗ Ollama 接続失敗: {e}")
 

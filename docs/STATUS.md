@@ -8,7 +8,7 @@
 
 - Webカメラで直近の映像を取得する
 - マイク音声をVAD/STTで日本語テキスト化する
-- ローカルのOllama `gemma3:4b` で「映像 + 発話」を解釈する
+- ローカルのOllamaで、通常会話は `gemma3:12b`、視覚参照は `qwen2.5vl:7b` に分けて解釈する
 - VOICEVOXで音声応答する
 - Wake Word「ジロー」または「じろえもん」で起動し、応答後は短時間だけ連続会話できる
 - クラウドAPIを呼ばず、会話ログとレイテンシをローカルに残す
@@ -17,7 +17,7 @@
 
 | 受入基準 | 現状 | 次に必要なこと |
 |---|---|---|
-| カメラに映ったものを3回中2回以上説明できる | 基本経路は検証済み。`smoke_camera.py --ask` と `run.bat --one-turn` で天井/照明を説明できた | 代表物体10種類で3回ずつ評価する |
+| カメラに映ったものを3回中2回以上説明できる | 旧Gemma3経路は検証済み。新標準は `qwen2.5vl:7b` で再評価する | 代表物体10種類で3回ずつ評価する |
 | 発話終了から音声出力開始まで5秒以内 | テキスト直入力の1ターンでLLM約0.9秒、TTS約2.0秒。マイク録音とSTT起動は確認済み | 実発話からの通しレイテンシをp50/p95で記録する |
 | 連続10ターンで文脈保持 | 実装あり、軽量テストあり。通常常駐モードの起動停止は確認済み | 実LLMで10ターン会話テスト |
 | VRAM常時14GB以下 | Ollama/Gemma3構成で起動確認済み。長時間推移は未計測 | `nvidia-smi` で長時間運用中のピークを記録する |
@@ -43,6 +43,10 @@
 - 人格会話向けプロンプト。カメラ映像は画面説明ではなく、ロボットの状況把握用コンテキストとして扱う
 - Web UIのテキスト入力。STTが崩れた場合でも、会話人格とTTS経路を確認できる
 - 通常会話では画像をLLMへ渡さず、視覚参照がある発話だけ最新フレームを添える
+- 通常会話モデルと視覚モデルの分離
+- faster-whisper `medium` の取得と比較。CUDA STTはDLL不足で保留し、標準はCPU `small` に維持
+- Ollamaモデル比較スクリプトとSTT比較スクリプト
+- 将来のロボット制御に向けた `WorldState` / `ActionPlan` / `RobotPlanner` の境界
 - 軽量ユニットテスト
 - 環境確認、LLMベンチ、カメラ/TTS/マイクSTTスモークスクリプト
 - VOICEVOX起動補助スクリプト
@@ -53,10 +57,10 @@
 
 - Python 3.11.9の仮想環境を作成済み
 - `.[whisper]` の主要依存を導入済み
-- Ollama `gemma3:4b` を導入済み
+- Ollama `gemma3:4b`、`gemma3:12b`、`qwen2.5vl:7b`、`qwen3.5:9b` を導入済み
 - VOICEVOX CPUを導入し、`http://127.0.0.1:50021` で起動確認済み
 - RTX 4060 Ti、カメラ index 0/4、マイク device 1 AT2020USB-X を検出済み
-- PyTorch/CUDA版torchは標準構成では不要
+- PyTorch/CUDA版torchは標準構成では不要。STTはCPU `small` を標準にし、CUDA STTは `cublas64_12.dll` / cuDNN整備後に再評価
 - 実行時の外部通信は使わない方針。Ollama/VOICEVOXはlocalhost、faster-whisperは `local_files_only: true` でローカルキャッシュのみ使用
 
 ### P0: 実発話での通常ループ確認
@@ -73,6 +77,8 @@
 - 物体ごとに3回ずつ、説明が妥当か記録する
 - 実発話から音声出力開始までのp50/p95を集計する
 - VRAMピークと長時間運用時の推移を記録する
+- `scripts/compare_ollama_models.py --vision` で `gemma3:12b`、`qwen2.5vl:7b`、`qwen3.5:9b` を比較する
+- `scripts/compare_stt_models.py --models small medium` でSTTの速度と文字起こしを比較する
 
 ### P3: 評価と調整
 
@@ -96,6 +102,7 @@
 4. 認識されない場合は `.\.venv\Scripts\python.exe scripts\smoke_mic_stt.py --seconds 5` で実際の文字起こしを確認する
 5. 文字起こし上のWake Word表記を `config.yaml` の `wake_word.aliases` に追加する
 6. Web UIを使う場合は `.\run_web.bat` を起動し、`http://127.0.0.1:8765` を開く
+7. 品質比較は `scripts/compare_ollama_models.py` と `scripts/compare_stt_models.py` で記録する
 
 ## Gemma系移行タスク
 
