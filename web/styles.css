@@ -1,0 +1,364 @@
+:root {
+  color-scheme: light;
+  --bg: #f4f6f8;
+  --surface: #ffffff;
+  --surface-2: #eef3f6;
+  --line: #d6dee4;
+  --text: #172026;
+  --muted: #61717d;
+  --accent: #087f8c;
+  --accent-dark: #06636d;
+  --warn: #b7791f;
+  --active: #287d3c;
+  --thinking: #6b46c1;
+  --danger: #a23b3b;
+  --shadow: 0 18px 50px rgba(23, 32, 38, 0.1);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  min-height: 100vh;
+  background: var(--bg);
+  color: var(--text);
+  font-family:
+    "Yu Gothic UI",
+    "Meiryo",
+    system-ui,
+    -apple-system,
+    BlinkMacSystemFont,
+    "Segoe UI",
+    sans-serif;
+}
+
+button {
+  min-height: 42px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--surface);
+  color: var(--text);
+  font: inherit;
+  font-weight: 700;
+  cursor: pointer;
+  padding: 0 16px;
+}
+
+button:hover {
+  border-color: #9fb2bd;
+}
+
+button:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+
+button.primary {
+  border-color: var(--accent);
+  background: var(--accent);
+  color: #ffffff;
+}
+
+button.primary:hover {
+  background: var(--accent-dark);
+}
+
+.topbar {
+  min-height: 74px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+  padding: 14px 24px;
+  border-bottom: 1px solid var(--line);
+  background: rgba(255, 255, 255, 0.92);
+}
+
+.topbar h1 {
+  margin: 0;
+  font-size: 22px;
+  line-height: 1.2;
+  letter-spacing: 0;
+}
+
+.topbar p {
+  margin: 4px 0 0;
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.state-pill {
+  min-width: 190px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  padding: 10px 14px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--surface);
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.state-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: var(--muted);
+}
+
+.state-WAKE_WAIT .state-dot {
+  background: var(--accent);
+}
+
+.state-LISTENING .state-dot {
+  background: var(--warn);
+}
+
+.state-THINKING .state-dot {
+  background: var(--thinking);
+}
+
+.state-SPEAKING .state-dot {
+  background: var(--active);
+}
+
+.workspace {
+  height: calc(100vh - 74px);
+  display: grid;
+  grid-template-columns: minmax(420px, 1.2fr) minmax(360px, 0.8fr);
+  gap: 18px;
+  padding: 18px;
+}
+
+.vision-pane,
+.chat-pane {
+  min-width: 0;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--surface);
+  box-shadow: var(--shadow);
+}
+
+.vision-pane {
+  display: grid;
+  grid-template-rows: minmax(260px, 1fr) auto;
+  overflow: hidden;
+}
+
+.camera-frame {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  min-height: 320px;
+  background: #101820;
+}
+
+.camera-frame img {
+  width: 100%;
+  height: 100%;
+  display: block;
+  object-fit: contain;
+}
+
+.camera-empty {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  color: #dce6eb;
+  font-weight: 700;
+  background: #101820;
+}
+
+.camera-empty.hidden {
+  display: none;
+}
+
+.status-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  border-top: 1px solid var(--line);
+  background: var(--surface-2);
+}
+
+.status-grid div {
+  min-width: 0;
+  padding: 14px 16px;
+  border-right: 1px solid var(--line);
+}
+
+.status-grid div:last-child {
+  border-right: 0;
+}
+
+.label {
+  display: block;
+  margin-bottom: 5px;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.2;
+}
+
+.status-grid strong {
+  display: block;
+  overflow-wrap: anywhere;
+  font-size: 15px;
+}
+
+.chat-pane {
+  display: grid;
+  grid-template-rows: auto auto minmax(0, 1fr);
+  overflow: hidden;
+}
+
+.controls {
+  display: grid;
+  grid-template-columns: 1fr auto auto;
+  gap: 10px;
+  padding: 14px;
+  border-bottom: 1px solid var(--line);
+}
+
+.session-meter {
+  padding: 12px 14px 14px;
+  border-bottom: 1px solid var(--line);
+  background: var(--surface-2);
+}
+
+.meter-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.meter-track {
+  height: 8px;
+  margin-top: 9px;
+  overflow: hidden;
+  border-radius: 8px;
+  background: #d8e1e6;
+}
+
+.meter-fill {
+  width: 0%;
+  height: 100%;
+  background: var(--accent);
+  transition: width 180ms ease, background 180ms ease;
+}
+
+.meter-fill.manual {
+  background: var(--warn);
+}
+
+.meter-fill.speaking {
+  background: var(--active);
+}
+
+.messages {
+  min-height: 0;
+  margin: 0;
+  padding: 18px;
+  overflow-y: auto;
+  list-style: none;
+  background: #fbfcfd;
+}
+
+.message {
+  display: flex;
+  margin-bottom: 14px;
+}
+
+.message.user {
+  justify-content: flex-end;
+}
+
+.bubble {
+  max-width: min(620px, 92%);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 11px 13px;
+  background: var(--surface);
+  line-height: 1.55;
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+}
+
+.message.user .bubble {
+  border-color: #9bc7cc;
+  background: #e6f5f6;
+}
+
+.message.assistant .bubble {
+  border-color: #cfd9df;
+  background: #ffffff;
+}
+
+.message.system .bubble {
+  max-width: 100%;
+  color: var(--muted);
+  background: transparent;
+  border-style: dashed;
+}
+
+.meta {
+  display: block;
+  margin-top: 7px;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+@media (max-width: 900px) {
+  .topbar {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .state-pill {
+    width: 100%;
+  }
+
+  .workspace {
+    height: auto;
+    min-height: calc(100vh - 74px);
+    grid-template-columns: 1fr;
+  }
+
+  .vision-pane {
+    grid-template-rows: minmax(220px, 54vh) auto;
+  }
+
+  .status-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .status-grid div {
+    border-right: 0;
+    border-bottom: 1px solid var(--line);
+  }
+
+  .status-grid div:last-child {
+    border-bottom: 0;
+  }
+}
+
+@media (max-width: 520px) {
+  .topbar {
+    padding: 12px;
+  }
+
+  .workspace {
+    padding: 10px;
+  }
+
+  .controls {
+    grid-template-columns: 1fr;
+  }
+}

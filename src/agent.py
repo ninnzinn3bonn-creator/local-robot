@@ -17,7 +17,7 @@ import logging
 import time
 from dataclasses import dataclass, field
 from enum import Enum, auto
-from typing import Optional
+from typing import Callable, Optional
 
 import numpy as np
 
@@ -117,6 +117,9 @@ class VisionAudioAgent:
         self._state: AgentState = AgentState.IDLE
         self._last_response_time: float = 0.0
         self._stop_event = asyncio.Event()
+        self.on_state_change: Optional[Callable[[AgentState, AgentState], None]] = None
+        self.on_user_text: Optional[Callable[[str], None]] = None
+        self.on_turn_complete: Optional[Callable[[Turn], None]] = None
 
     # ---- ライフサイクル ----
 
@@ -202,7 +205,7 @@ class VisionAudioAgent:
                 if audio is None:
                     continue
 
-                await self._process_turn(audio)
+                await self.process_audio(audio)
 
         except KeyboardInterrupt:
             logger.info("KeyboardInterrupt 受信")
@@ -249,11 +252,32 @@ class VisionAudioAgent:
             latency_ms=lat,
         )
 
+    async def process_audio(self, audio: np.ndarray, bypass_wake: bool = False) -> Optional[Turn]:
+        """音声1発話を処理する。Web UIでは bypass_wake=True でボタン起動に使う。"""
+        return await self._process_turn(audio, bypass_wake=bypass_wake)
+
+    @property
+    def state(self) -> AgentState:
+        return self._state
+
+    def continuous_remaining_sec(self) -> float:
+        """応答後のWake Wordなし連続会話時間の残り秒数。"""
+        remaining = self.cfg.wake_word.timeout_after_response_sec - (
+            time.monotonic() - self._last_response_time
+        )
+        return max(0.0, remaining)
+
+    def end_continuous_mode(self) -> None:
+        """連続会話モードを終了し、次発話からWake Wordを必須にする。"""
+        self._last_response_time = 0.0
+
     # ---- 内部メソッド ----
 
     def _set_state(self, state: AgentState) -> None:
         old = self._state
         self._state = state
+        if self.on_state_change:
+            self.on_state_change(old, state)
         state_colors = {
             AgentState.IDLE: "dim",
             AgentState.WAKE_WAIT: "cyan",
@@ -285,7 +309,7 @@ class VisionAudioAgent:
             return audio
         return None
 
-    async def _process_turn(self, audio: np.ndarray) -> None:
+    async def _process_turn(self, audio: np.ndarray, bypass_wake: bool = False) -> Optional[Turn]:
         """1ターンの処理フロー: STT → wake word → LLM → TTS"""
         loop = asyncio.get_event_loop()
         timer = LatencyTimer()
@@ -302,7 +326,7 @@ class VisionAudioAgent:
             logger.debug("STT 結果が空。スキップ。")
             self.mic.active = True
             self._set_state(AgentState.WAKE_WAIT)
-            return
+            return None
 
         console.print(f"[yellow]USER (raw): {stt_text}[/yellow]")
 
@@ -312,16 +336,18 @@ class VisionAudioAgent:
                 logger.info(f"日本語以外を検知、無視: {stt_text!r}")
                 self.mic.active = True
                 self._set_state(AgentState.WAKE_WAIT)
-                return
+                return None
 
         # ---- Wake Word ----
-        if not self._is_continuous_mode():
+        if bypass_wake:
+            user_text = stt_text
+        elif not self._is_continuous_mode():
             detected, content = self.wake_word.detect(stt_text)
             if not detected:
                 logger.debug(f"wake word なし: {stt_text!r}")
                 self.mic.active = True
                 self._set_state(AgentState.WAKE_WAIT)
-                return
+                return None
             self.conv_logger.log_wake()
             user_text = content if content else stt_text
         else:
@@ -329,6 +355,8 @@ class VisionAudioAgent:
             user_text = stt_text
 
         self.conv_logger.log_user(user_text)
+        if self.on_user_text:
+            self.on_user_text(user_text)
         console.print(f"[bold yellow]USER: {user_text}[/bold yellow]")
 
         # フレーム取得・ログ
@@ -351,7 +379,7 @@ class VisionAudioAgent:
             self.conv_logger.log_error(str(e))
             self.mic.active = True
             self._set_state(AgentState.WAKE_WAIT)
-            return
+            return None
         llm_ms = timer.stop("llm")
 
         console.print(f"[bold green]BOT: {response}[/bold green]")
@@ -384,6 +412,16 @@ class VisionAudioAgent:
         self.mic.flush()
         self.mic.active = True
         self._set_state(AgentState.WAKE_WAIT)
+
+        turn = Turn(
+            user_text=user_text,
+            image=frame,
+            assistant_text=response,
+            latency_ms=timer.summary(),
+        )
+        if self.on_turn_complete:
+            self.on_turn_complete(turn)
+        return turn
 
     @staticmethod
     def _is_japanese(text: str) -> bool:

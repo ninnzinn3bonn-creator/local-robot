@@ -39,6 +39,7 @@
 - 会話ログとレイテンシログ
 - Wake Word検出と連続会話モード
 - Energy VADによるPyTorch不要の標準構成
+- ローカルWeb UI。左にカメラ映像、右に会話ログ、手動発話ボタン、連続会話残り時間を表示
 - 軽量ユニットテスト
 - 環境確認、LLMベンチ、カメラ/TTS/マイクSTTスモークスクリプト
 - VOICEVOX起動補助スクリプト
@@ -91,6 +92,7 @@
 3. 返答後8秒以内に「色は？」などを続けて話す
 4. 認識されない場合は `.\.venv\Scripts\python.exe scripts\smoke_mic_stt.py --seconds 5` で実際の文字起こしを確認する
 5. 文字起こし上のWake Word表記を `config.yaml` の `wake_word.aliases` に追加する
+6. Web UIを使う場合は `.\run_web.bat` を起動し、`http://127.0.0.1:8765` を開く
 
 ## Gemma系移行タスク
 

@@ -49,9 +49,10 @@ legacy-qwen = [
 
 [project.scripts]
 local-modal-agent = "main:main"
+local-robot-web = "src.webapp:main"
 
 [tool.setuptools]
-py-modules = ["main"]
+py-modules = ["main", "web"]
 
 [tool.setuptools.packages.find]
 where = ["."]

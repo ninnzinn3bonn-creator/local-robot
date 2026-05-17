@@ -1,0 +1,66 @@
+<!doctype html>
+<html lang="ja">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Local Robot</title>
+    <link rel="stylesheet" href="/static/styles.css" />
+  </head>
+  <body>
+    <header class="topbar">
+      <div>
+        <h1>Local Robot</h1>
+        <p id="statusText">起動中</p>
+      </div>
+      <div class="state-pill" id="statePill">
+        <span class="state-dot"></span>
+        <span id="stateLabel">起動中</span>
+      </div>
+    </header>
+
+    <main class="workspace">
+      <section class="vision-pane" aria-label="カメラ映像">
+        <div class="camera-frame">
+          <img id="cameraImage" alt="現在のカメラ映像" />
+          <div class="camera-empty" id="cameraEmpty">カメラ準備中</div>
+        </div>
+        <div class="status-grid">
+          <div>
+            <span class="label">Wake Word</span>
+            <strong id="wakeWord">じろえもん</strong>
+          </div>
+          <div>
+            <span class="label">手動起動</span>
+            <strong id="manualStatus">待機なし</strong>
+          </div>
+          <div>
+            <span class="label">連続会話</span>
+            <strong id="continuousStatus">待機なし</strong>
+          </div>
+        </div>
+      </section>
+
+      <section class="chat-pane" aria-label="会話">
+        <div class="controls">
+          <button class="primary" id="listenButton" type="button">話しかける</button>
+          <button id="endButton" type="button">会話終了</button>
+          <button id="clearButton" type="button">消去</button>
+        </div>
+
+        <div class="session-meter" aria-live="polite">
+          <div class="meter-row">
+            <span id="sessionText">ウェイクワード待機中</span>
+            <span id="sessionTime">0.0秒</span>
+          </div>
+          <div class="meter-track">
+            <div class="meter-fill" id="sessionFill"></div>
+          </div>
+        </div>
+
+        <ol class="messages" id="messages" aria-live="polite"></ol>
+      </section>
+    </main>
+
+    <script src="/static/app.js"></script>
+  </body>
+</html>

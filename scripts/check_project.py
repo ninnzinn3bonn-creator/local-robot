@@ -38,6 +38,7 @@ def check_pyproject() -> bool:
 def check_compile() -> bool:
     targets = [
         ROOT / "main.py",
+        ROOT / "web.py",
         ROOT / "src",
         ROOT / "scripts",
         ROOT / "tests",

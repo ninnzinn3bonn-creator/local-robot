@@ -1,0 +1,347 @@
+"""
+webapp.py - Local browser UI for the multimodal agent.
+
+The server uses only Python's standard library. Browser requests stay on
+127.0.0.1 and the existing agent keeps using local Ollama, VOICEVOX, camera,
+and microphone devices.
+"""
+from __future__ import annotations
+
+import argparse
+import asyncio
+import json
+import logging
+import mimetypes
+import threading
+import time
+import traceback
+from dataclasses import dataclass, field
+from http import HTTPStatus
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+from pathlib import Path
+from typing import Any, Optional
+from urllib.parse import urlparse
+
+import cv2  # type: ignore
+
+from src.agent import AgentState, Turn, VisionAudioAgent
+from src.utils.encoding import configure_utf8_stdio
+
+configure_utf8_stdio()
+
+logger = logging.getLogger(__name__)
+
+ROOT = Path(__file__).resolve().parent.parent
+WEB_DIR = ROOT / "web"
+
+
+STATE_LABELS = {
+    "IDLE": "停止中",
+    "WAKE_WAIT": "ウェイクワード待機中",
+    "LISTENING": "聞き取り中",
+    "THINKING": "考え中",
+    "SPEAKING": "返答を読み上げ中",
+}
+
+
+@dataclass
+class ChatMessage:
+    id: int
+    role: str
+    text: str
+    timestamp: float = field(default_factory=time.time)
+    latency_ms: Optional[dict[str, int]] = None
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "id": self.id,
+            "role": self.role,
+            "text": self.text,
+            "timestamp": self.timestamp,
+            "latencyMs": self.latency_ms,
+        }
+
+
+class WebRuntime:
+    """Owns the agent and exposes a thread-safe snapshot for HTTP handlers."""
+
+    def __init__(self, config_path: str) -> None:
+        self.agent = VisionAudioAgent(config_path)
+        self.agent.on_state_change = self._on_state_change
+        self.agent.on_user_text = self._on_user_text
+        self.agent.on_turn_complete = self._on_turn_complete
+
+        self._lock = threading.RLock()
+        self._loop = asyncio.new_event_loop()
+        self._thread = threading.Thread(target=self._run_loop, daemon=True, name="web-agent")
+        self._message_id = 0
+        self._messages: list[ChatMessage] = []
+        self._ready = False
+        self._error: Optional[str] = None
+        self._status_text = "起動中"
+        self._manual_armed = False
+        self._manual_expires_at = 0.0
+        self._last_state = self.agent.state.name
+
+    def start(self) -> None:
+        self._add_message("system", "起動中です。モデルとデバイスを準備しています。")
+        self._thread.start()
+
+    def arm_manual_listen(self, timeout_sec: float = 20.0) -> dict[str, Any]:
+        with self._lock:
+            self._manual_armed = True
+            self._manual_expires_at = time.monotonic() + timeout_sec
+            self._status_text = "ボタン起動: マイクに話しかけてください"
+            self.agent.mic.flush()
+            self.agent.mic.active = True
+        return self.snapshot()
+
+    def end_conversation(self) -> dict[str, Any]:
+        with self._lock:
+            self._manual_armed = False
+            self._manual_expires_at = 0.0
+            self.agent.end_continuous_mode()
+            self.agent.mic.flush()
+            self._status_text = "会話を終了しました。次はウェイクワードまたはボタンで開始します"
+        return self.snapshot()
+
+    def clear_messages(self) -> dict[str, Any]:
+        with self._lock:
+            self._messages.clear()
+            self._add_message("system", "チャット表示を消去しました。")
+        return self.snapshot()
+
+    def frame_jpeg(self) -> Optional[bytes]:
+        frame = self.agent.camera.get_latest()
+        if frame is None:
+            return None
+        ok, encoded = cv2.imencode(".jpg", frame, [int(cv2.IMWRITE_JPEG_QUALITY), 82])
+        if not ok:
+            return None
+        return encoded.tobytes()
+
+    def snapshot(self) -> dict[str, Any]:
+        with self._lock:
+            self._expire_manual_locked()
+            state = self.agent.state.name
+            continuous_remaining = self.agent.continuous_remaining_sec()
+            manual_remaining = max(0.0, self._manual_expires_at - time.monotonic())
+            label = STATE_LABELS.get(state, state)
+            if self._manual_armed and state == AgentState.WAKE_WAIT.name:
+                label = "ボタン起動: 発話待ち"
+
+            return {
+                "ready": self._ready,
+                "error": self._error,
+                "state": state,
+                "stateLabel": label,
+                "statusText": self._status_text,
+                "manualArmed": self._manual_armed,
+                "manualRemainingSec": round(manual_remaining, 1),
+                "continuousRemainingSec": round(continuous_remaining, 1),
+                "continuousLimitSec": self.agent.cfg.wake_word.timeout_after_response_sec,
+                "wakeWord": self.agent.cfg.wake_word.phrase,
+                "cameraRunning": self.agent.camera.is_running,
+                "messages": [message.to_dict() for message in self._messages[-80:]],
+            }
+
+    def _run_loop(self) -> None:
+        asyncio.set_event_loop(self._loop)
+        self._loop.run_until_complete(self._agent_loop())
+
+    async def _agent_loop(self) -> None:
+        try:
+            await self.agent.start()
+            with self._lock:
+                self._ready = True
+                self._status_text = "起動完了。ウェイクワードまたはボタンで開始できます"
+            self._add_message("system", "起動完了。左の映像を見ながら会話できます。")
+
+            loop = asyncio.get_event_loop()
+            while not self.agent._stop_event.is_set():
+                self._expire_manual()
+                audio = await loop.run_in_executor(None, self.agent._wait_for_utterance)
+                if audio is None:
+                    continue
+                bypass_wake = self._consume_manual()
+                await self.agent.process_audio(audio, bypass_wake=bypass_wake)
+        except Exception as exc:
+            logger.exception("Web agent loop failed")
+            with self._lock:
+                self._error = f"{exc}"
+                self._status_text = "エラーが発生しました"
+            self._add_message("system", "エラーが発生しました。コンソールログを確認してください。")
+            traceback.print_exc()
+        finally:
+            try:
+                await self.agent.stop()
+            except Exception:
+                logger.exception("Agent shutdown failed")
+
+    def _consume_manual(self) -> bool:
+        with self._lock:
+            self._expire_manual_locked()
+            if not self._manual_armed:
+                return False
+            self._manual_armed = False
+            self._manual_expires_at = 0.0
+            self._status_text = "ボタン起動の発話を処理しています"
+            return True
+
+    def _expire_manual(self) -> None:
+        with self._lock:
+            self._expire_manual_locked()
+
+    def _expire_manual_locked(self) -> None:
+        if self._manual_armed and time.monotonic() >= self._manual_expires_at:
+            self._manual_armed = False
+            self._manual_expires_at = 0.0
+            self._status_text = "ボタン起動の待機時間が終了しました"
+
+    def _on_state_change(self, _old: AgentState, new: AgentState) -> None:
+        with self._lock:
+            self._last_state = new.name
+            if new == AgentState.WAKE_WAIT and not self._manual_armed:
+                remaining = self.agent.continuous_remaining_sec()
+                if remaining > 0:
+                    self._status_text = "応答後の連続会話を受け付けています"
+                else:
+                    self._status_text = "ウェイクワード待機中"
+            else:
+                self._status_text = STATE_LABELS.get(new.name, new.name)
+
+    def _on_user_text(self, text: str) -> None:
+        self._add_message("user", text)
+
+    def _on_turn_complete(self, turn: Turn) -> None:
+        self._add_message("assistant", turn.assistant_text, latency_ms=turn.latency_ms)
+
+    def _add_message(
+        self,
+        role: str,
+        text: str,
+        latency_ms: Optional[dict[str, int]] = None,
+    ) -> None:
+        with self._lock:
+            self._message_id += 1
+            self._messages.append(
+                ChatMessage(
+                    id=self._message_id,
+                    role=role,
+                    text=text,
+                    latency_ms=latency_ms,
+                )
+            )
+
+
+class LocalRobotHandler(BaseHTTPRequestHandler):
+    runtime: WebRuntime
+
+    def do_GET(self) -> None:  # noqa: N802
+        path = urlparse(self.path).path
+        if path == "/":
+            self._serve_static(WEB_DIR / "index.html")
+            return
+        if path == "/api/state":
+            self._send_json(self.runtime.snapshot())
+            return
+        if path == "/api/frame.jpg":
+            frame = self.runtime.frame_jpeg()
+            if frame is None:
+                self._send_text("No frame yet", HTTPStatus.SERVICE_UNAVAILABLE)
+                return
+            self.send_response(HTTPStatus.OK)
+            self.send_header("Content-Type", "image/jpeg")
+            self.send_header("Cache-Control", "no-store")
+            self.send_header("Content-Length", str(len(frame)))
+            self.end_headers()
+            self.wfile.write(frame)
+            return
+        if path.startswith("/static/"):
+            self._serve_static(WEB_DIR / path.removeprefix("/static/"))
+            return
+        self._send_text("Not found", HTTPStatus.NOT_FOUND)
+
+    def do_POST(self) -> None:  # noqa: N802
+        path = urlparse(self.path).path
+        if path == "/api/listen":
+            self._send_json(self.runtime.arm_manual_listen())
+            return
+        if path == "/api/end-session":
+            self._send_json(self.runtime.end_conversation())
+            return
+        if path == "/api/clear":
+            self._send_json(self.runtime.clear_messages())
+            return
+        self._send_text("Not found", HTTPStatus.NOT_FOUND)
+
+    def log_message(self, fmt: str, *args: Any) -> None:
+        logger.debug("web: " + fmt, *args)
+
+    def _serve_static(self, path: Path) -> None:
+        try:
+            resolved = path.resolve()
+            web_root = WEB_DIR.resolve()
+            if web_root not in resolved.parents and resolved != web_root:
+                self._send_text("Forbidden", HTTPStatus.FORBIDDEN)
+                return
+            if not resolved.exists() or not resolved.is_file():
+                self._send_text("Not found", HTTPStatus.NOT_FOUND)
+                return
+            content = resolved.read_bytes()
+            mime = mimetypes.guess_type(str(resolved))[0] or "application/octet-stream"
+            if resolved.suffix == ".js":
+                mime = "text/javascript; charset=utf-8"
+            elif resolved.suffix in {".html", ".css"}:
+                mime = f"text/{resolved.suffix[1:]}; charset=utf-8"
+            self.send_response(HTTPStatus.OK)
+            self.send_header("Content-Type", mime)
+            self.send_header("Cache-Control", "no-store")
+            self.send_header("Content-Length", str(len(content)))
+            self.end_headers()
+            self.wfile.write(content)
+        except OSError as exc:
+            self._send_text(f"Static file error: {exc}", HTTPStatus.INTERNAL_SERVER_ERROR)
+
+    def _send_json(self, payload: dict[str, Any], status: HTTPStatus = HTTPStatus.OK) -> None:
+        data = json.dumps(payload, ensure_ascii=False).encode("utf-8")
+        self.send_response(status)
+        self.send_header("Content-Type", "application/json; charset=utf-8")
+        self.send_header("Cache-Control", "no-store")
+        self.send_header("Content-Length", str(len(data)))
+        self.end_headers()
+        self.wfile.write(data)
+
+    def _send_text(self, text: str, status: HTTPStatus = HTTPStatus.OK) -> None:
+        data = text.encode("utf-8")
+        self.send_response(status)
+        self.send_header("Content-Type", "text/plain; charset=utf-8")
+        self.send_header("Content-Length", str(len(data)))
+        self.end_headers()
+        self.wfile.write(data)
+
+
+def main() -> None:
+    parser = argparse.ArgumentParser(description="Local robot web UI")
+    parser.add_argument("--config", default="config.yaml")
+    parser.add_argument("--host", default="127.0.0.1")
+    parser.add_argument("--port", type=int, default=8765)
+    args = parser.parse_args()
+
+    logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
+    runtime = WebRuntime(args.config)
+    runtime.start()
+
+    LocalRobotHandler.runtime = runtime
+    server = ThreadingHTTPServer((args.host, args.port), LocalRobotHandler)
+    print(f"Web UI: http://{args.host}:{args.port}")
+    try:
+        server.serve_forever()
+    except KeyboardInterrupt:
+        pass
+    finally:
+        server.server_close()
+
+
+if __name__ == "__main__":
+    main()
