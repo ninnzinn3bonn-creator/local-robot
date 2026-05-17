@@ -30,6 +30,8 @@ class STTConfig(BaseModel):
     model: str = "large-v3"
     compute_type: str = "int8_float16"
     language: str = "ja"
+    local_files_only: bool = True
+    download_root: Optional[str] = None
 
 
 class VADConfig(BaseModel):

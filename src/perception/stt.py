@@ -29,14 +29,18 @@ class WhisperSTT:
         model: str = "large-v3",
         compute_type: str = "int8_float16",
         language: str = "ja",
+        local_files_only: bool = True,
+        download_root: Optional[str] = None,
     ) -> None:
         self._model_size = model
         self._compute_type = compute_type
         self._language = language
+        self._local_files_only = local_files_only
+        self._download_root = download_root
         self._model = None
 
     def load(self, device: str = "cuda") -> None:
-        """モデルをロードする。初回はダウンロードが走る（約3GB）。"""
+        """モデルをロードする。標準ではローカルキャッシュのみを使う。"""
         from faster_whisper import WhisperModel  # type: ignore
 
         logger.info(f"faster-whisper '{self._model_size}' をロード中 ({device}, {self._compute_type})...")
@@ -44,6 +48,8 @@ class WhisperSTT:
             self._model_size,
             device=device,
             compute_type=self._compute_type,
+            download_root=self._download_root,
+            local_files_only=self._local_files_only,
         )
         logger.info("faster-whisper ロード完了")
 

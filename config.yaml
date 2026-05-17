@@ -17,6 +17,8 @@ stt:
   model: "small"
   compute_type: "int8"
   language: "ja"
+  local_files_only: true     # 完全オフライン運用: 事前に取得済みのローカルキャッシュだけ使う
+  download_root: null
 
 vad:
   backend: "energy"         # energy / silero

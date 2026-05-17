@@ -13,6 +13,8 @@ Webカメラ、マイク、ローカルLLM、VOICEVOXを使って、見えてい
 - 検証済み: カメラ画像のGemma3認識、VOICEVOX音声再生、マイク録音、`run.bat --one-turn`、通常常駐モードの起動停止
 - 残り: ユーザーが実際にWake Wordを発話して、通常ループの音声入力認識と連続会話を実機確認する
 
+実行時の推論経路はローカルです。Ollama、faster-whisper、VOICEVOXはいずれもこのPC上で動きます。初回セットアップやモデル取得にはネットが必要ですが、取得済みの現在構成ではネットなし起動を前提に `stt.local_files_only: true` にしています。
+
 詳しい進捗と不足分は [docs/STATUS.md](docs/STATUS.md) を見てください。Gemma 4移行方針は [docs/GEMMA_MIGRATION.md](docs/GEMMA_MIGRATION.md) にまとめています。
 
 ## セットアップ概要

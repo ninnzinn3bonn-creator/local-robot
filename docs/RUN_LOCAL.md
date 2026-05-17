@@ -13,6 +13,17 @@
 
 2026-05-17時点で、この構成は実機確認済みです。カメラ画像のGemma3認識、VOICEVOX読み上げ、マイク録音、`run.bat --one-turn`、通常常駐モードの起動停止まで通っています。
 
+## オフライン動作の前提
+
+この構成の実行時通信はローカルホスト宛てです。
+
+- LLM: `http://127.0.0.1:11434` のOllama
+- TTS: `http://127.0.0.1:50021` のVOICEVOX ENGINE
+- STT: このPCにキャッシュ済みの faster-whisper `small`
+- カメラ/マイク/スピーカー: PCのローカルデバイス
+
+初回のPython依存導入、`ollama pull gemma3:4b`、VOICEVOX導入、Whisperモデル取得にはネットが必要です。取得済みの現在構成では、通常実行はネットなしで動く想定です。`config.yaml` の `stt.local_files_only: true` により、STTはネットから自動取得せずローカルキャッシュだけを使います。
+
 ## 1. サービスを起動
 
 Ollamaは既に常駐しています。VOICEVOXは次で起動します。

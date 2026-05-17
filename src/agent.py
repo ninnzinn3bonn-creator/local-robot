@@ -96,6 +96,8 @@ class VisionAudioAgent:
                 model=self.cfg.stt.model,
                 compute_type=self.cfg.stt.compute_type,
                 language=self.cfg.stt.language,
+                local_files_only=self.cfg.stt.local_files_only,
+                download_root=self.cfg.stt.download_root,
             )
         self.wake_word = WakeWordDetector(
             aliases=self.cfg.wake_word.aliases,

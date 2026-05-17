@@ -53,6 +53,7 @@
 - VOICEVOX CPUを導入し、`http://127.0.0.1:50021` で起動確認済み
 - RTX 4060 Ti、カメラ index 0/4、マイク device 1 AT2020USB-X を検出済み
 - PyTorch/CUDA版torchは標準構成では不要
+- 実行時の外部通信は使わない方針。Ollama/VOICEVOXはlocalhost、faster-whisperは `local_files_only: true` でローカルキャッシュのみ使用
 
 ### P0: 実発話での通常ループ確認
 

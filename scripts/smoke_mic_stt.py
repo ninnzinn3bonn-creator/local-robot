@@ -57,6 +57,8 @@ def main() -> int:
         model=cfg.stt.model,
         compute_type=cfg.stt.compute_type,
         language=cfg.stt.language,
+        local_files_only=cfg.stt.local_files_only,
+        download_root=cfg.stt.download_root,
     )
     device = "cuda" if "cuda" in cfg.device else "cpu"
     stt.load(device=device)
