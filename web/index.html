@@ -56,7 +56,16 @@
         </div>
       </section>
 
-      <section class="chat-pane" aria-label="操作と会話">
+      <section class="chat-pane" aria-label="操作卓">
+        <section class="connection-panel" aria-label="接続状態">
+          <div>
+            <span class="label">接続</span>
+            <strong id="connectionStatus">未接続</strong>
+            <p id="connectionDetail">ローカル操作卓へ接続します</p>
+          </div>
+          <button class="primary" id="connectButton" type="button">接続</button>
+        </section>
+
         <div class="robot-console">
           <section class="console-block" aria-label="ロボット操作">
             <div class="block-title">
@@ -125,38 +134,47 @@
           </section>
         </div>
 
-        <div class="controls">
-          <button class="primary" id="listenButton" type="button">話しかける</button>
-          <button id="endButton" type="button">会話終了</button>
-          <button id="clearButton" type="button">消去</button>
-        </div>
+        <details class="chat-drawer" id="chatDrawer">
+          <summary>
+            <span>チャット履歴・入力</span>
+            <span id="chatBadge">0件</span>
+          </summary>
 
-        <form class="text-entry" id="textForm">
-          <input
-            id="textInput"
-            name="text"
-            type="text"
-            autocomplete="off"
-            placeholder="音声が崩れるときはここに入力"
-          />
-          <button type="submit">送信</button>
-        </form>
+          <div class="chat-drawer-body">
+            <div class="controls">
+              <button class="primary" id="listenButton" type="button">話しかける</button>
+              <button id="endButton" type="button">会話終了</button>
+              <button id="clearButton" type="button">消去</button>
+            </div>
 
-        <div class="session-meter" aria-live="polite">
-          <div class="meter-row">
-            <span id="sessionText">ウェイクワード待機中</span>
-            <span id="sessionTime">0.0秒</span>
+            <form class="text-entry" id="textForm">
+              <input
+                id="textInput"
+                name="text"
+                type="text"
+                autocomplete="off"
+                placeholder="音声が崩れるときはここに入力"
+              />
+              <button type="submit">送信</button>
+            </form>
+
+            <div class="session-meter" aria-live="polite">
+              <div class="meter-row">
+                <span id="sessionText">ウェイクワード待機中</span>
+                <span id="sessionTime">0.0秒</span>
+              </div>
+              <div class="meter-track">
+                <div class="meter-fill" id="sessionFill"></div>
+              </div>
+            </div>
+
+            <ol class="messages" id="messages" aria-live="polite"></ol>
           </div>
-          <div class="meter-track">
-            <div class="meter-fill" id="sessionFill"></div>
-          </div>
-        </div>
-
-        <ol class="messages" id="messages" aria-live="polite"></ol>
+        </details>
       </section>
     </main>
 
-    <script type="module" src="/static/twin.js"></script>
-    <script src="/static/app.js"></script>
+    <script type="module" src="/static/twin.js?v=20260518-operator-4"></script>
+    <script src="/static/app.js?v=20260518-operator-4"></script>
   </body>
 </html>

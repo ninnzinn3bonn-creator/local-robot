@@ -9,6 +9,9 @@ const continuousStatus = document.getElementById("continuousStatus");
 const safetyStatus = document.getElementById("safetyStatus");
 const missionStatus = document.getElementById("missionStatus");
 const cleaningStatus = document.getElementById("cleaningStatus");
+const connectionStatus = document.getElementById("connectionStatus");
+const connectionDetail = document.getElementById("connectionDetail");
+const connectButton = document.getElementById("connectButton");
 const estopButton = document.getElementById("estopButton");
 const resetEstopButton = document.getElementById("resetEstopButton");
 const listenButton = document.getElementById("listenButton");
@@ -32,6 +35,8 @@ const planIntent = document.getElementById("planIntent");
 const observationText = document.getElementById("observationText");
 const hazardsText = document.getElementById("hazardsText");
 const actionPlanText = document.getElementById("actionPlanText");
+const chatDrawer = document.getElementById("chatDrawer");
+const chatBadge = document.getElementById("chatBadge");
 const textForm = document.getElementById("textForm");
 const textInput = document.getElementById("textInput");
 const sessionText = document.getElementById("sessionText");
@@ -41,6 +46,8 @@ const messages = document.getElementById("messages");
 
 let lastMessageKey = "";
 let latestState = null;
+let operatorConnected = false;
+let connectionMessageUntil = 0;
 
 async function api(path, options = {}) {
   const response = await fetch(path, {
@@ -78,6 +85,7 @@ function renderMessages(items) {
   const key = items.map((item) => item.id).join(",");
   if (key === lastMessageKey) return;
   lastMessageKey = key;
+  chatBadge.textContent = `${items.length}件`;
 
   messages.innerHTML = "";
   for (const item of items) {
@@ -205,9 +213,19 @@ function updateMeter(state) {
 
 function renderState(state) {
   latestState = state;
+  operatorConnected = Boolean(state.ready);
   statePill.className = `state-pill state-${state.state}`;
   stateLabel.textContent = state.stateLabel;
   statusText.textContent = state.error || state.statusText;
+  connectionStatus.textContent = state.ready ? "接続済み" : "接続待ち";
+  if (Date.now() >= connectionMessageUntil) {
+    connectionDetail.textContent = state.error
+      ? state.error
+      : state.ready
+        ? `カメラ ${state.cameraRunning ? "ON" : "OFF"} / 状態 ${state.stateLabel}`
+        : "モデルとデバイスの起動を待っています";
+  }
+  connectButton.textContent = state.ready ? "再接続" : "接続";
   wakeWord.textContent = state.wakeWord;
   manualStatus.textContent = state.manualArmed
     ? `発話待ち ${state.manualRemainingSec.toFixed(1)}秒`
@@ -218,7 +236,8 @@ function renderState(state) {
       : "待機なし";
 
   const busy = state.state === "THINKING" || state.state === "SPEAKING";
-  listenButton.disabled = !state.ready || state.manualArmed || busy;
+  connectButton.disabled = false;
+  listenButton.disabled = !operatorConnected || state.manualArmed || busy;
   endButton.disabled = !state.ready;
   clearButton.disabled = !state.ready;
   textInput.disabled = !state.ready || busy;
@@ -233,6 +252,9 @@ async function refreshState() {
     const state = await api("/api/state");
     renderState(state);
   } catch (error) {
+    operatorConnected = false;
+    connectionStatus.textContent = "未接続";
+    connectionDetail.textContent = `接続待ち: ${error.message}`;
     statusText.textContent = `接続待ち: ${error.message}`;
   }
 }
@@ -257,6 +279,19 @@ listenButton.addEventListener("click", async () => {
     renderState(await post("/api/listen"));
   } catch (error) {
     statusText.textContent = `話しかけ開始に失敗: ${error.message}`;
+  }
+});
+
+connectButton.addEventListener("click", async () => {
+  connectButton.disabled = true;
+  try {
+    await refreshState();
+    if (operatorConnected) {
+      connectionMessageUntil = Date.now() + 2500;
+      connectionDetail.textContent = "操作卓に接続しました";
+    }
+  } finally {
+    connectButton.disabled = false;
   }
 });
 
@@ -338,6 +373,9 @@ endButton.addEventListener("click", async () => {
 clearButton.addEventListener("click", async () => {
   try {
     renderState(await post("/api/clear"));
+    if (chatDrawer.open) {
+      messages.scrollTop = messages.scrollHeight;
+    }
   } catch (error) {
     statusText.textContent = `消去に失敗: ${error.message}`;
   }

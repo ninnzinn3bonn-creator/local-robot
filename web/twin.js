@@ -3,6 +3,8 @@ import * as THREE from "./vendor/three.module.min.js";
 const canvas = document.getElementById("twinCanvas");
 const statusEl = document.getElementById("twinStatus");
 const poseEl = document.getElementById("twinPose");
+canvas.dataset.twinBoot = "started";
+canvas.dataset.pixelError = "booting";
 
 const scene = new THREE.Scene();
 scene.background = new THREE.Color(0xf7fafc);
@@ -15,7 +17,12 @@ const renderer = new THREE.WebGLRenderer({
   antialias: true,
   canvas,
 });
-renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+const pixelRatio = Math.min(window.devicePixelRatio || 1, 1.5);
+const maxRenderWidth = 1200;
+const maxRenderHeight = 900;
+const maxSamplePixels = 1500000;
+
+renderer.setPixelRatio(pixelRatio);
 renderer.shadowMap.enabled = true;
 
 const root = new THREE.Group();
@@ -180,12 +187,22 @@ const pose = {
 
 let lastTime = performance.now();
 let lastPixelSample = 0;
+let lastRenderAt = performance.now();
 
 function resizeRenderer() {
   const rect = canvas.getBoundingClientRect();
-  const width = Math.max(1, Math.floor(rect.width));
-  const height = Math.max(1, Math.floor(rect.height));
-  if (canvas.width !== width || canvas.height !== height) {
+  const rawWidth = Math.max(1, Math.floor(rect.width));
+  const rawHeight = Math.max(1, Math.floor(rect.height));
+  const scale = Math.min(
+    1,
+    maxRenderWidth / Math.max(1, rawWidth * pixelRatio),
+    maxRenderHeight / Math.max(1, rawHeight * pixelRatio),
+  );
+  const width = Math.max(1, Math.floor(rawWidth * scale));
+  const height = Math.max(1, Math.floor(rawHeight * scale));
+  const targetWidth = Math.floor(width * pixelRatio);
+  const targetHeight = Math.floor(height * pixelRatio);
+  if (canvas.width !== targetWidth || canvas.height !== targetHeight) {
     renderer.setSize(width, height, false);
     camera.aspect = width / height;
     camera.updateProjectionMatrix();
@@ -242,21 +259,31 @@ function updateMotion(dt) {
   updatePath();
 }
 
-function animate(now) {
+function renderFrame(now) {
   resizeRenderer();
   const dt = Math.min(0.05, (now - lastTime) / 1000);
   lastTime = now;
+  lastRenderAt = performance.now();
   updateMotion(dt);
   renderer.render(scene, camera);
   if (now - lastPixelSample > 1000) {
-    const sample = samplePixels();
-    canvas.dataset.pixelRatio = sample.ratio.toFixed(4);
-    canvas.dataset.nonBlank = String(sample.nonBlank);
-    canvas.dataset.driveState = sample.driveState;
-    canvas.dataset.cleaningState = sample.cleaningState;
+    try {
+      const sample = samplePixels();
+      canvas.dataset.pixelRatio = sample.ratio.toFixed(4);
+      canvas.dataset.nonBlank = String(sample.nonBlank);
+      canvas.dataset.driveState = sample.driveState;
+      canvas.dataset.cleaningState = sample.cleaningState;
+      canvas.dataset.pixelError = "";
+    } catch (error) {
+      canvas.dataset.pixelError = error.message;
+    }
     lastPixelSample = now;
   }
   poseEl.textContent = `x ${pose.x.toFixed(2)} / z ${pose.z.toFixed(2)} / yaw ${Math.round(THREE.MathUtils.radToDeg(pose.yaw))}°`;
+}
+
+function animate(now) {
+  renderFrame(now);
   requestAnimationFrame(animate);
 }
 
@@ -272,6 +299,17 @@ function samplePixels() {
   const gl = renderer.getContext();
   const width = canvas.width;
   const height = canvas.height;
+  const pixelCount = width * height;
+  if (!Number.isFinite(pixelCount) || pixelCount <= 0 || pixelCount > maxSamplePixels) {
+    return {
+      width,
+      height,
+      nonBlank: 0,
+      ratio: 0,
+      driveState: pose.driveState,
+      cleaningState: pose.cleaningState,
+    };
+  }
   const pixels = new Uint8Array(width * height * 4);
   gl.readPixels(0, 0, width, height, gl.RGBA, gl.UNSIGNED_BYTE, pixels);
   let nonBlank = 0;
@@ -297,3 +335,8 @@ window.robotTwin = {
 };
 
 requestAnimationFrame(animate);
+setInterval(() => {
+  if (performance.now() - lastRenderAt > 700) {
+    renderFrame(performance.now());
+  }
+}, 500);

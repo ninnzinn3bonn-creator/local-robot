@@ -51,8 +51,9 @@
 - Ollamaモデル比較スクリプトとSTT比較スクリプト
 - 将来のロボット制御に向けた `WorldState` / `ActionPlan` / `RobotPlanner` の境界
 - 用水路清掃向けの `SafetyGate`、`DummyActuator`、`MissionController`
-- Web UIの緊急停止、手動操作、清掃ON/OFF、ミッション操作、AI認識根拠表示
+- Web UIの接続パネル、緊急停止、手動操作、清掃ON/OFF、ミッション操作、AI認識根拠表示
 - Web UIの3Dデジタルツイン。操作ボタンに合わせて箱型ロボットの移動、旋回、清掃状態を表示
+- Web UIは操作を主役にし、チャット履歴とテキスト入力は折りたたみ式の引き出しに格納
 - 軽量ユニットテスト
 - 環境確認、LLMベンチ、カメラ/TTS/マイクSTTスモークスクリプト
 - VOICEVOX起動補助スクリプト
@@ -86,6 +87,7 @@
 - `scripts/compare_ollama_models.py --vision` で `gemma3:12b`、`qwen2.5vl:7b`、`qwen3.5:9b` を比較する
 - `scripts/compare_stt_models.py --models small medium` でSTTの速度と文字起こしを比較する
 - Web UIに観察メモを表示し、ユーザーが見えている根拠をその場で確認できるようにする
+- Web UIの操作優先レイアウトで、接続、手動操作、3Dデジタルツイン、折りたたみ式チャット履歴を確認する
 
 ### P1: 用水路操作卓検証
 

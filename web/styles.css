@@ -228,16 +228,39 @@ button.stop {
 
 .chat-pane {
   display: grid;
-  grid-template-rows: auto auto auto auto minmax(0, 1fr);
+  grid-template-rows: auto minmax(0, 1fr) auto;
   overflow: hidden;
+}
+
+.connection-panel {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 14px;
+  border-bottom: 1px solid var(--line);
+  background: #fbfcfd;
+}
+
+.connection-panel strong {
+  display: block;
+  font-size: 16px;
+  line-height: 1.2;
+}
+
+.connection-panel p {
+  margin: 3px 0 0;
+  color: var(--muted);
+  font-size: 12px;
+  overflow-wrap: anywhere;
 }
 
 .robot-console {
   display: grid;
   grid-template-columns: minmax(0, 1fr) minmax(230px, 0.86fr);
   gap: 0;
-  border-bottom: 1px solid var(--line);
   background: #fbfcfd;
+  overflow: auto;
 }
 
 .console-block {
@@ -377,6 +400,63 @@ button.stop {
   overflow-wrap: anywhere;
 }
 
+.chat-drawer {
+  min-height: 0;
+  border-top: 1px solid var(--line);
+  background: #fbfcfd;
+}
+
+.chat-drawer summary {
+  min-height: 46px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 0 14px;
+  color: var(--text);
+  font-weight: 700;
+  cursor: pointer;
+  list-style: none;
+}
+
+.chat-drawer summary::-webkit-details-marker {
+  display: none;
+}
+
+.chat-drawer summary::before {
+  content: "▸";
+  color: var(--muted);
+  margin-right: 2px;
+}
+
+.chat-drawer[open] summary::before {
+  content: "▾";
+}
+
+.chat-drawer summary span:first-child {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  margin-right: auto;
+}
+
+#chatBadge {
+  padding: 3px 7px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  color: var(--muted);
+  background: var(--surface);
+  font-size: 12px;
+  white-space: nowrap;
+}
+
+.chat-drawer-body {
+  max-height: min(52vh, 520px);
+  display: grid;
+  grid-template-rows: auto auto auto minmax(180px, 1fr);
+  border-top: 1px solid var(--line);
+}
+
 .controls {
   display: grid;
   grid-template-columns: 1fr auto auto;
@@ -451,6 +531,7 @@ button.stop {
 
 .messages {
   min-height: 0;
+  max-height: 310px;
   margin: 0;
   padding: 18px;
   overflow-y: auto;
@@ -533,6 +614,7 @@ button.stop {
 
   .robot-console {
     grid-template-columns: 1fr;
+    overflow: visible;
   }
 
   .digital-twin {
@@ -562,6 +644,10 @@ button.stop {
   }
 
   .controls {
+    grid-template-columns: 1fr;
+  }
+
+  .connection-panel {
     grid-template-columns: 1fr;
   }
 
