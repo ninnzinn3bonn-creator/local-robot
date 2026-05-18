@@ -46,8 +46,25 @@ DummyActuator
 - 清掃ON/OFF、ライト切替
 - ミッション開始、一時停止、再開、完了
 - AI観察メモ、危険、ActionPlan表示
+- 3Dデジタルツイン表示。操作ボタンに合わせて、20cm級の箱型ロボットが前進、後退、旋回、停止、清掃ON/OFFを反映する
 
 これらはすべてローカルAPIで完結します。現時点の操作はシミュレーションで、実機モータへは送信しません。
+
+## 3Dデジタルツイン方針
+
+短期は、Web操作卓にThree.jsの軽量3Dビューを同梱します。Three.jsはWebページ上に3Dシーン、カメラ、ライト、メッシュを置けるため、現在のHTTP UIにそのまま入れられます。
+
+今の3Dビューは、実機の物理シミュレーションではありません。ボタン操作とダミーActuatorのテレメトリを受けて、CAD風の外観ビューとしてロボット姿勢を表示します。
+
+将来、現実のロボットとデジタル空間を一致させる段階では、次の分担にします。
+
+| 役割 | 技術候補 | 使いどころ |
+|---|---|---|
+| 操作卓内の軽量3D表示 | [Three.js](https://threejs.org/manual/en/fundamentals.html) | 現場で状態をすぐ見る |
+| 物理シミュレーション | [ROS 2 + Gazebo/Webots](https://docs.ros.org/en/rolling/Tutorials/Advanced/Simulators/Simulation-Main.html) | 実機投入前にセンサー、アクチュエータ、制御を検証する |
+| ログ/ROS可視化 | [Foxglove 3D panel](https://docs.foxglove.dev/docs/visualization/panels/3d) | 実機ログ、経路、点群、マーカー、CAD/STL/glTFモデルを解析する |
+
+最終的には、実機から位置、姿勢、速度、ブラシ状態、センサー値をWebSocketまたはROS Bridgeで受け取り、Webのデジタルツインと実機状態を同期します。
 
 ## 次の実装順
 

@@ -142,6 +142,9 @@ function renderRobot(robot) {
   observationText.textContent = robot.lastObservation || "まだ観察メモはありません";
   hazardsText.textContent = formatList(worldState.hazards);
   actionPlanText.textContent = formatActionPlan(plan);
+  if (window.robotTwin) {
+    window.robotTwin.updateFromRobot(robot);
+  }
 
   const estop = estopActive;
   resetEstopButton.disabled = !estop;

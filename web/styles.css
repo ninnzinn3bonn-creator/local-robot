@@ -234,7 +234,7 @@ button.stop {
 
 .robot-console {
   display: grid;
-  grid-template-columns: 1fr;
+  grid-template-columns: minmax(0, 1fr) minmax(230px, 0.86fr);
   gap: 0;
   border-bottom: 1px solid var(--line);
   background: #fbfcfd;
@@ -248,6 +248,56 @@ button.stop {
 
 .console-block:last-child {
   border-bottom: 0;
+}
+
+.digital-twin {
+  grid-column: 2;
+  grid-row: 1 / span 3;
+  min-width: 0;
+  min-height: 320px;
+  display: grid;
+  grid-template-rows: auto minmax(240px, 1fr);
+  padding: 12px 14px 14px;
+  border-left: 1px solid var(--line);
+  background: #f7fafc;
+}
+
+.twin-stage {
+  position: relative;
+  min-height: 240px;
+  overflow: hidden;
+  border: 1px solid #c8d5dc;
+  border-radius: 8px;
+  background: #f7fafc;
+}
+
+.twin-stage canvas {
+  width: 100%;
+  height: 100%;
+  min-height: 240px;
+  display: block;
+}
+
+.twin-overlay {
+  position: absolute;
+  left: 10px;
+  right: 10px;
+  bottom: 10px;
+  display: flex;
+  justify-content: flex-end;
+  pointer-events: none;
+}
+
+.twin-overlay span {
+  max-width: 100%;
+  padding: 5px 7px;
+  border: 1px solid rgba(23, 32, 38, 0.12);
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.88);
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 700;
+  overflow-wrap: anywhere;
 }
 
 .block-title {
@@ -479,6 +529,17 @@ button.stop {
 
   .status-grid {
     grid-template-columns: 1fr;
+  }
+
+  .robot-console {
+    grid-template-columns: 1fr;
+  }
+
+  .digital-twin {
+    grid-column: auto;
+    grid-row: auto;
+    border-left: 0;
+    border-top: 1px solid var(--line);
   }
 
   .status-grid div {

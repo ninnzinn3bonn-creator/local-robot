@@ -52,6 +52,7 @@
 - 将来のロボット制御に向けた `WorldState` / `ActionPlan` / `RobotPlanner` の境界
 - 用水路清掃向けの `SafetyGate`、`DummyActuator`、`MissionController`
 - Web UIの緊急停止、手動操作、清掃ON/OFF、ミッション操作、AI認識根拠表示
+- Web UIの3Dデジタルツイン。操作ボタンに合わせて箱型ロボットの移動、旋回、清掃状態を表示
 - 軽量ユニットテスト
 - 環境確認、LLMベンチ、カメラ/TTS/マイクSTTスモークスクリプト
 - VOICEVOX起動補助スクリプト

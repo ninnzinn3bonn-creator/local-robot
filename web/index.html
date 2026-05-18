@@ -110,6 +110,19 @@
               </div>
             </dl>
           </section>
+
+          <section class="digital-twin" aria-label="3Dデジタルツイン">
+            <div class="block-title">
+              <h2>Digital Twin</h2>
+              <span id="twinStatus">stopped</span>
+            </div>
+            <div class="twin-stage">
+              <canvas id="twinCanvas"></canvas>
+              <div class="twin-overlay">
+                <span id="twinPose">x 0.00 / z 0.00 / yaw 0°</span>
+              </div>
+            </div>
+          </section>
         </div>
 
         <div class="controls">
@@ -143,6 +156,7 @@
       </section>
     </main>
 
+    <script type="module" src="/static/twin.js"></script>
     <script src="/static/app.js"></script>
   </body>
 </html>
