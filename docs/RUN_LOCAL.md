@@ -1,6 +1,6 @@
 # このPCで起動する手順
 
-更新日: 2026-05-17
+更新日: 2026-05-20
 
 このPCでは、最短で動く構成として次を使います。
 
@@ -36,6 +36,65 @@ ollama pull gemma3:12b
 ```
 
 注: このPCでは faster-whisper のCUDAロードは通りましたが、実際の文字起こし時に `cublas64_12.dll` が不足してCUDA実行が失敗しました。会話を確実に動かす標準はCPU `small` のままです。
+
+## 起動・停止・URL早見表
+
+Web操作卓を使う時は、プロジェクト直下で次を実行します。
+
+```powershell
+.\scripts\start_voicevox.ps1
+.\run_web.bat
+```
+
+起動後に開くURL:
+
+```text
+http://127.0.0.1:8765
+```
+
+よく見るローカルURL:
+
+| 用途 | URL |
+|---|---|
+| Web操作卓 | `http://127.0.0.1:8765` |
+| 状態API | `http://127.0.0.1:8765/api/state` |
+| カメラJPEG | `http://127.0.0.1:8765/api/frame.jpg` |
+| Ollama | `http://127.0.0.1:11434` |
+| VOICEVOX ENGINE | `http://127.0.0.1:50021` |
+
+Web UIを前面のPowerShellで起動している場合は、そのウィンドウで `Ctrl+C` を押すと停止できます。どのウィンドウで動いているかわからない時は、プロジェクト直下で次を実行すると、このプロジェクトのWeb UIだけを止められます。
+
+```powershell
+$project = (Resolve-Path .).Path
+Get-CimInstance Win32_Process |
+  Where-Object {
+    $_.Name -like 'python*' -and
+    $_.CommandLine -like "*$project*" -and
+    $_.CommandLine -like '*web.py*'
+  } |
+  ForEach-Object { Stop-Process -Id $_.ProcessId -Force }
+```
+
+通常の音声対話ループを `.\run.bat` で起動している場合も、基本は起動したPowerShellで `Ctrl+C` です。残っているプロセスを止める場合は次を使います。
+
+```powershell
+$project = (Resolve-Path .).Path
+Get-CimInstance Win32_Process |
+  Where-Object {
+    $_.Name -like 'python*' -and
+    $_.CommandLine -like "*$project*" -and
+    $_.CommandLine -like '*main.py*'
+  } |
+  ForEach-Object { Stop-Process -Id $_.ProcessId -Force }
+```
+
+ポート `8765` が既に使われている時は、別ポートで起動できます。
+
+```powershell
+.\.venv\Scripts\python.exe web.py --host 127.0.0.1 --port 8766
+```
+
+この場合のURLは `http://127.0.0.1:8766` です。VOICEVOXとOllamaはローカルサービスとして常駐していて問題ありません。完全に止めたい場合は、それぞれを起動したウィンドウを閉じるか `Ctrl+C` で停止してください。
 
 ## 1. サービスを起動
 
