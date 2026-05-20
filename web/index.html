@@ -63,7 +63,13 @@
             <strong id="connectionStatus">未接続</strong>
             <p id="connectionDetail">ローカル操作卓へ接続します</p>
           </div>
+          <div class="audio-status">
+            <span class="label">音声</span>
+            <strong id="audioStatus">未確認</strong>
+            <p id="audioDetail">VOICEVOXとスピーカーを確認します</p>
+          </div>
           <button class="primary" id="connectButton" type="button">接続</button>
+          <button id="audioTestButton" type="button">音声テスト</button>
         </section>
 
         <div class="robot-console">
@@ -174,7 +180,7 @@
       </section>
     </main>
 
-    <script type="module" src="/static/twin.js?v=20260518-operator-4"></script>
-    <script src="/static/app.js?v=20260518-operator-4"></script>
+    <script type="module" src="/static/twin.js?v=20260520-voice-drive-2"></script>
+    <script src="/static/app.js?v=20260520-voice-drive-2"></script>
   </body>
 </html>

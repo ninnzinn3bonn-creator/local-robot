@@ -27,6 +27,7 @@ import cv2  # type: ignore
 
 from src.agent import AgentState, Turn, VisionAudioAgent
 from src.robot import DummyActuator, MissionController, SafetyGate
+from src.robot.voice_commands import parse_operator_command
 from src.utils.encoding import configure_utf8_stdio
 
 configure_utf8_stdio()
@@ -89,6 +90,10 @@ class WebRuntime:
         self._actuator = DummyActuator(self._safety_gate)
         self._mission = MissionController()
         self._events: list[dict[str, Any]] = []
+        self._audio_status_text = "未確認"
+        self._audio_test_running = False
+        self._last_tts_available = False
+        self._last_tts_check_at = 0.0
 
     def start(self) -> None:
         self._add_message("system", "起動中です。モデルとデバイスを準備しています。")
@@ -108,6 +113,7 @@ class WebRuntime:
             self._manual_armed = False
             self._manual_expires_at = 0.0
             self.agent.end_continuous_mode()
+            self.agent.speaker.stop()
             self.agent.mic.flush()
             self._status_text = "会話を終了しました。次はウェイクワードまたはボタンで開始します"
         return self.snapshot()
@@ -123,6 +129,7 @@ class WebRuntime:
             result = self._actuator.emergency_stop(reason)
             self._mission.estop(reason)
             self.agent.end_continuous_mode()
+            self.agent.speaker.stop()
             self._manual_armed = False
             self._manual_expires_at = 0.0
             self._status_text = "緊急停止中。周囲確認後に解除してください"
@@ -139,17 +146,21 @@ class WebRuntime:
 
     def manual_control(self, command: str) -> dict[str, Any]:
         with self._lock:
-            result = self._actuator.execute(command, self.agent.last_world_state)
-            if command == "stop":
-                self._mission.pause("手動停止")
-            elif result.accepted and command == "clean_on":
-                self._mission.cleaning("清掃機構ON")
-            elif result.accepted and command == "clean_off":
-                self._mission.resume("清掃機構OFF、走行待ち")
-            elif result.accepted and command in {"forward", "reverse", "turn_left", "turn_right"}:
-                self._mission.resume("手動微速操作")
-            self._status_text = result.message
-            self._add_event("manual_control", result.message, {"command": command})
+            self._execute_manual_control_locked(command, source="button")
+        return self.snapshot()
+
+    def test_audio(self) -> dict[str, Any]:
+        with self._lock:
+            if self._audio_test_running:
+                self._audio_status_text = "音声テスト中です"
+                return self.snapshot()
+            self._audio_test_running = True
+            self._audio_status_text = "音声テスト中"
+        future = asyncio.run_coroutine_threadsafe(self._test_audio_async(), self._loop)
+        try:
+            future.result(timeout=0.05)
+        except TimeoutError:
+            pass
         return self.snapshot()
 
     def mission_command(self, command: str, payload: Optional[dict[str, Any]] = None) -> dict[str, Any]:
@@ -188,6 +199,7 @@ class WebRuntime:
             self._manual_expires_at = 0.0
             self._status_text = "テキスト入力を処理しています"
             self._add_message("user", text)
+            self._apply_operator_command_locked(text, source="text")
         future = asyncio.run_coroutine_threadsafe(self._submit_text_async(text), self._loop)
         try:
             future.result(timeout=0.05)
@@ -228,6 +240,7 @@ class WebRuntime:
                 "cameraRunning": self.agent.camera.is_running,
                 "messages": [message.to_dict() for message in self._messages[-80:]],
                 "robot": self._robot_snapshot_locked(),
+                "audio": self._audio_snapshot_locked(),
             }
 
     def _run_loop(self) -> None:
@@ -311,6 +324,7 @@ class WebRuntime:
 
     def _on_user_text(self, text: str) -> None:
         self._add_message("user", text)
+        self._apply_operator_command(text, source="voice")
 
     def _on_turn_complete(self, turn: Turn) -> None:
         self._add_message("assistant", turn.assistant_text, latency_ms=turn.latency_ms)
@@ -348,6 +362,81 @@ class WebRuntime:
             "actionPlan": self.agent.last_action_plan.to_dict(),
             "events": self._events[-20:],
         }
+
+    def _audio_snapshot_locked(self) -> dict[str, Any]:
+        now = time.monotonic()
+        if now - self._last_tts_check_at >= 4.0:
+            self._last_tts_check_at = now
+            try:
+                self._last_tts_available = self.agent.tts.is_available()
+            except Exception:
+                self._last_tts_available = False
+        return {
+            "ttsAvailable": self._last_tts_available,
+            "ttsEndpoint": self.agent.tts.endpoint,
+            "speakerId": self.agent.tts.speaker_id,
+            "speakerDevice": self.agent.speaker.device,
+            "speakerPlaying": self.agent.speaker.is_playing,
+            "speakerPlayCount": self.agent.speaker.play_count,
+            "speakerLastError": self.agent.speaker.last_error,
+            "speakerLastPlayedAt": self.agent.speaker.last_played_at,
+            "testRunning": self._audio_test_running,
+            "statusText": self._audio_status_text,
+        }
+
+    def _apply_operator_command(self, text: str, source: str) -> None:
+        with self._lock:
+            self._apply_operator_command_locked(text, source)
+
+    def _apply_operator_command_locked(self, text: str, source: str) -> None:
+        command = parse_operator_command(text)
+        if command is None:
+            return
+        result = self._execute_manual_control_locked(command, source=source)
+        source_label = "音声" if source == "voice" else "テキスト"
+        self._add_message("system", f"{source_label}操作: {result.message}")
+
+    def _execute_manual_control_locked(self, command: str, source: str) -> Any:
+        result = self._actuator.execute(command, self.agent.last_world_state)
+        if command == "stop":
+            self._mission.pause("手動停止")
+        elif result.accepted and command == "clean_on":
+            self._mission.cleaning("清掃機構ON")
+        elif result.accepted and command == "clean_off":
+            self._mission.resume("清掃機構OFF、走行待ち")
+        elif result.accepted and command in {"forward", "reverse", "turn_left", "turn_right"}:
+            self._mission.resume("手動微速操作")
+        self._status_text = result.message
+        self._add_event(
+            "manual_control",
+            result.message,
+            {"command": command, "source": source},
+        )
+        return result
+
+    async def _test_audio_async(self) -> None:
+        loop = asyncio.get_event_loop()
+        try:
+            if not self.agent.tts.is_available():
+                raise RuntimeError("VOICEVOX ENGINE が応答していません")
+            wav = await loop.run_in_executor(
+                None,
+                lambda: self.agent.tts.synthesize("音声テストです。聞こえていますか？"),
+            )
+            await loop.run_in_executor(None, lambda: self.agent.speaker.play(wav))
+            with self._lock:
+                self._audio_status_text = "音声テストを再生しました"
+                self._last_tts_available = True
+                self._add_message("system", "音声テストを再生しました。")
+        except Exception as exc:
+            logger.error("Audio test failed: %s", exc)
+            with self._lock:
+                self._audio_status_text = f"音声テスト失敗: {exc}"
+                self._last_tts_available = False
+                self._add_message("system", f"音声テスト失敗: {exc}")
+        finally:
+            with self._lock:
+                self._audio_test_running = False
 
     def _add_event(
         self,
@@ -403,6 +492,9 @@ class LocalRobotHandler(BaseHTTPRequestHandler):
             return
         if path == "/api/clear":
             self._send_json(self.runtime.clear_messages())
+            return
+        if path == "/api/audio/test":
+            self._send_json(self.runtime.test_audio())
             return
         if path == "/api/estop":
             self._send_json(self.runtime.emergency_stop())

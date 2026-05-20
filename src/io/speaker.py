@@ -9,6 +9,7 @@ from __future__ import annotations
 import io
 import logging
 import threading
+import time
 from typing import Optional
 
 import numpy as np
@@ -32,6 +33,13 @@ class Speaker:
         self._device = device
         self._lock = threading.Lock()
         self.is_playing: bool = False
+        self.last_error: Optional[str] = None
+        self.last_played_at: Optional[float] = None
+        self.play_count: int = 0
+
+    @property
+    def device(self) -> Optional[int]:
+        return self._device
 
     def play(self, wav_bytes: bytes) -> None:
         """WAV バイト列を同期再生する。完了するまでブロックする。"""
@@ -42,8 +50,13 @@ class Speaker:
                 data, samplerate = sf.read(buf, dtype="float32")
                 sd.play(data, samplerate=samplerate, device=self._device)
                 sd.wait()
+                self.last_error = None
+                self.last_played_at = time.time()
+                self.play_count += 1
             except Exception as e:
+                self.last_error = str(e)
                 logger.error(f"音声再生エラー: {e}")
+                raise
             finally:
                 self.is_playing = False
 

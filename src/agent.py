@@ -36,6 +36,7 @@ from src.perception.wake_word import WakeWordDetector
 from src.reasoning.factory import create_llm
 from src.reasoning.memory import ConversationMemory
 from src.robot import ActionPlan, RobotPlanner, WorldState
+from src.robot.voice_commands import parse_operator_command
 from src.speech.tts import VoicevoxTTS
 from src.utils.logging import ConversationLogger, setup_logging
 from src.utils.metrics import LatencyTimer
@@ -248,6 +249,8 @@ class VisionAudioAgent:
         self._set_state(AgentState.SPEAKING)
         timer.start("tts")
         try:
+            if not self.tts.is_available():
+                raise RuntimeError("VOICEVOX ENGINE が応答していません")
             wav = await loop.run_in_executor(
                 None, lambda: self.tts.synthesize(response)
             )
@@ -427,6 +430,8 @@ class VisionAudioAgent:
         self._set_state(AgentState.SPEAKING)
         timer.start("tts")
         try:
+            if not self.tts.is_available():
+                raise RuntimeError("VOICEVOX ENGINE が応答していません")
             wav = await loop.run_in_executor(
                 None, lambda: self.tts.synthesize(response)
             )
@@ -519,6 +524,8 @@ class VisionAudioAgent:
     def _frame_for_user_text(self, user_text: str) -> Optional[np.ndarray]:
         """会話では原則画像を渡さず、視覚参照があるときだけ最新フレームを添える。"""
         if not self.camera.is_running:
+            return None
+        if parse_operator_command(user_text) is not None:
             return None
         if not self._should_use_vision(user_text):
             return None

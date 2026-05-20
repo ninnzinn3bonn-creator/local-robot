@@ -9,8 +9,8 @@ canvas.dataset.pixelError = "booting";
 const scene = new THREE.Scene();
 scene.background = new THREE.Color(0xf7fafc);
 
-const camera = new THREE.PerspectiveCamera(42, 1, 0.01, 40);
-camera.position.set(0.55, 0.42, 0.62);
+const camera = new THREE.PerspectiveCamera(46, 1, 0.01, 40);
+camera.position.set(1.35, 0.92, 1.28);
 camera.lookAt(0, 0.02, 0);
 
 const renderer = new THREE.WebGLRenderer({
@@ -36,12 +36,12 @@ key.position.set(2.2, 3.0, 1.7);
 key.castShadow = true;
 scene.add(key);
 
-const grid = new THREE.GridHelper(3.2, 32, 0x8aa5ad, 0xd1dde2);
+const grid = new THREE.GridHelper(4.2, 42, 0x8aa5ad, 0xd1dde2);
 grid.position.y = -0.051;
 scene.add(grid);
 
 const floor = new THREE.Mesh(
-  new THREE.PlaneGeometry(3.2, 2.0),
+  new THREE.PlaneGeometry(4.2, 2.6),
   new THREE.MeshStandardMaterial({
     color: 0xe8eef2,
     roughness: 0.86,
@@ -53,33 +53,89 @@ floor.position.y = -0.055;
 floor.receiveShadow = true;
 scene.add(floor);
 
-const water = new THREE.Mesh(
-  new THREE.PlaneGeometry(2.8, 0.7),
-  new THREE.MeshStandardMaterial({
-    color: 0x87c3d8,
-    roughness: 0.42,
-    metalness: 0.0,
-    transparent: true,
-    opacity: 0.32,
-  }),
-);
-water.rotation.x = -Math.PI / 2;
-water.position.y = -0.048;
-scene.add(water);
-
+const concreteMaterial = new THREE.MeshStandardMaterial({
+  color: 0xd8e0e3,
+  roughness: 0.78,
+  metalness: 0.02,
+  side: THREE.DoubleSide,
+});
+const waterMaterial = new THREE.MeshStandardMaterial({
+  color: 0x78bfd2,
+  roughness: 0.42,
+  metalness: 0.0,
+  transparent: true,
+  opacity: 0.38,
+  side: THREE.DoubleSide,
+});
 const wallMaterial = new THREE.MeshStandardMaterial({
   color: 0xcbd5db,
   roughness: 0.72,
   metalness: 0.02,
 });
 
-for (const z of [-0.43, 0.43]) {
-  const wall = new THREE.Mesh(new THREE.BoxGeometry(2.9, 0.16, 0.045), wallMaterial);
-  wall.position.set(0, 0.025, z);
-  wall.receiveShadow = true;
-  wall.castShadow = true;
-  scene.add(wall);
+const channelPoints = [];
+for (let i = 0; i <= 96; i += 1) {
+  const t = i / 96;
+  const x = -1.55 + t * 3.1;
+  const z = Math.sin((t - 0.5) * Math.PI * 2) * 0.36;
+  channelPoints.push(new THREE.Vector3(x, 0, z));
 }
+
+function channelNormal(points, index) {
+  const prev = points[Math.max(0, index - 1)];
+  const next = points[Math.min(points.length - 1, index + 1)];
+  const tangent = new THREE.Vector3().subVectors(next, prev).normalize();
+  return new THREE.Vector3(-tangent.z, 0, tangent.x).normalize();
+}
+
+function offsetChannelPoint(points, index, offset, y) {
+  const normal = channelNormal(points, index);
+  return points[index].clone().addScaledVector(normal, offset).setY(y);
+}
+
+function makeChannelRibbon(points, halfWidth, y) {
+  const vertices = [];
+  const indices = [];
+  for (let i = 0; i < points.length; i += 1) {
+    const left = offsetChannelPoint(points, i, halfWidth, y);
+    const right = offsetChannelPoint(points, i, -halfWidth, y);
+    vertices.push(left.x, left.y, left.z, right.x, right.y, right.z);
+  }
+  for (let i = 0; i < points.length - 1; i += 1) {
+    const a = i * 2;
+    indices.push(a, a + 1, a + 2, a + 1, a + 3, a + 2);
+  }
+  const geometry = new THREE.BufferGeometry();
+  geometry.setAttribute("position", new THREE.Float32BufferAttribute(vertices, 3));
+  geometry.setIndex(indices);
+  geometry.computeVertexNormals();
+  return geometry;
+}
+
+const channelBed = new THREE.Mesh(makeChannelRibbon(channelPoints, 0.43, -0.053), concreteMaterial);
+channelBed.receiveShadow = true;
+scene.add(channelBed);
+
+const water = new THREE.Mesh(makeChannelRibbon(channelPoints, 0.25, -0.043), waterMaterial);
+scene.add(water);
+
+function addChannelWall(offset) {
+  for (let i = 0; i < channelPoints.length - 2; i += 2) {
+    const a = offsetChannelPoint(channelPoints, i, offset, 0.025);
+    const b = offsetChannelPoint(channelPoints, i + 2, offset, 0.025);
+    const delta = new THREE.Vector3().subVectors(b, a);
+    const length = Math.max(0.04, Math.sqrt(delta.x * delta.x + delta.z * delta.z));
+    const wall = new THREE.Mesh(new THREE.BoxGeometry(length, 0.16, 0.055), wallMaterial);
+    wall.position.copy(a).add(b).multiplyScalar(0.5);
+    wall.rotation.y = -Math.atan2(delta.z, delta.x);
+    wall.receiveShadow = true;
+    wall.castShadow = true;
+    scene.add(wall);
+  }
+}
+
+addChannelWall(0.37);
+addChannelWall(-0.37);
 
 const robot = new THREE.Group();
 root.add(robot);

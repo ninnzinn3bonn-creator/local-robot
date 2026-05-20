@@ -12,6 +12,9 @@ const cleaningStatus = document.getElementById("cleaningStatus");
 const connectionStatus = document.getElementById("connectionStatus");
 const connectionDetail = document.getElementById("connectionDetail");
 const connectButton = document.getElementById("connectButton");
+const audioStatus = document.getElementById("audioStatus");
+const audioDetail = document.getElementById("audioDetail");
+const audioTestButton = document.getElementById("audioTestButton");
 const estopButton = document.getElementById("estopButton");
 const resetEstopButton = document.getElementById("resetEstopButton");
 const listenButton = document.getElementById("listenButton");
@@ -127,6 +130,29 @@ function formatActionPlan(plan) {
     .join(" / ");
 }
 
+function renderAudio(audio) {
+  if (!audio) {
+    audioStatus.textContent = "未確認";
+    audioDetail.textContent = "VOICEVOXとスピーカーを確認します";
+    return;
+  }
+  if (audio.testRunning) {
+    audioStatus.textContent = "テスト中";
+  } else if (audio.speakerLastError) {
+    audioStatus.textContent = "再生エラー";
+  } else if (audio.ttsAvailable) {
+    audioStatus.textContent = "音声OK";
+  } else {
+    audioStatus.textContent = "VOICEVOX未接続";
+  }
+
+  const device = audio.speakerDevice === null || audio.speakerDevice === undefined ? "default" : audio.speakerDevice;
+  const played = Number.isFinite(audio.speakerPlayCount) ? ` / 再生 ${audio.speakerPlayCount}回` : "";
+  audioDetail.textContent = audio.speakerLastError
+    ? audio.speakerLastError
+    : `${audio.statusText || "待機中"} / speaker ${device}${played}`;
+}
+
 function renderRobot(robot) {
   if (!robot) return;
   const telemetry = robot.telemetry || {};
@@ -226,6 +252,7 @@ function renderState(state) {
         : "モデルとデバイスの起動を待っています";
   }
   connectButton.textContent = state.ready ? "再接続" : "接続";
+  renderAudio(state.audio);
   wakeWord.textContent = state.wakeWord;
   manualStatus.textContent = state.manualArmed
     ? `発話待ち ${state.manualRemainingSec.toFixed(1)}秒`
@@ -237,6 +264,7 @@ function renderState(state) {
 
   const busy = state.state === "THINKING" || state.state === "SPEAKING";
   connectButton.disabled = false;
+  audioTestButton.disabled = !state.ready || busy || Boolean(state.audio?.testRunning);
   listenButton.disabled = !operatorConnected || state.manualArmed || busy;
   endButton.disabled = !state.ready;
   clearButton.disabled = !state.ready;
@@ -292,6 +320,17 @@ connectButton.addEventListener("click", async () => {
     }
   } finally {
     connectButton.disabled = false;
+  }
+});
+
+audioTestButton.addEventListener("click", async () => {
+  audioTestButton.disabled = true;
+  try {
+    renderState(await post("/api/audio/test"));
+  } catch (error) {
+    statusText.textContent = `音声テストに失敗: ${error.message}`;
+  } finally {
+    audioTestButton.disabled = false;
   }
 });
 

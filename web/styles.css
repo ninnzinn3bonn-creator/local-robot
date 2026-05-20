@@ -234,7 +234,7 @@ button.stop {
 
 .connection-panel {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-columns: minmax(0, 1fr) minmax(170px, 0.8fr) auto auto;
   align-items: center;
   gap: 12px;
   padding: 12px 14px;
@@ -242,13 +242,15 @@ button.stop {
   background: #fbfcfd;
 }
 
-.connection-panel strong {
+.connection-panel strong,
+.audio-status strong {
   display: block;
   font-size: 16px;
   line-height: 1.2;
 }
 
-.connection-panel p {
+.connection-panel p,
+.audio-status p {
   margin: 3px 0 0;
   color: var(--muted);
   font-size: 12px;

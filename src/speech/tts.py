@@ -17,7 +17,7 @@ import httpx
 
 logger = logging.getLogger(__name__)
 
-DEFAULT_TIMEOUT = 30.0  # 秒
+DEFAULT_TIMEOUT = 12.0  # 秒
 
 
 class VoicevoxTTS:
@@ -53,6 +53,14 @@ class VoicevoxTTS:
         if self._client:
             self._client.close()
             self._client = None
+
+    @property
+    def endpoint(self) -> str:
+        return self._endpoint
+
+    @property
+    def speaker_id(self) -> int:
+        return self._speaker_id
 
     # ---- public API ----
 

@@ -9,6 +9,7 @@ from src.robot import (
     SafetyGate,
     WorldState,
 )
+from src.robot.voice_commands import parse_operator_command
 
 
 class RobotPlannerTests(unittest.TestCase):
@@ -109,6 +110,26 @@ class RobotPlannerTests(unittest.TestCase):
 
         self.assertEqual(mission.state.phase, MissionPhase.FINISHED)
         self.assertEqual(mission.state.target_distance_m, 5)
+
+    def test_operator_voice_commands_map_to_actuator_commands(self):
+        cases = {
+            "前に進めて": "forward",
+            "少しバックして": "reverse",
+            "左に曲がって": "turn_left",
+            "右へ向いて": "turn_right",
+            "止まって": "stop",
+            "掃除して": "clean_on",
+            "清掃を止めて": "clean_off",
+            "ライトを切り替えて": "lights_toggle",
+        }
+
+        for text, command in cases.items():
+            with self.subTest(text=text):
+                self.assertEqual(parse_operator_command(text), command)
+
+    def test_operator_voice_commands_ignore_conversation_phrases(self):
+        self.assertIsNone(parse_operator_command("話を進めて"))
+        self.assertIsNone(parse_operator_command("前に何が見えるか教えて"))
 
 
 if __name__ == "__main__":
